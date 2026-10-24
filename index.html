@@ -26,6 +26,70 @@
       };
     </script>
     <style>
+      /* Formularfelder dürfen nie breiter als ihr Container werden */
+      input,
+      select,
+      textarea {
+        max-width: 100%;
+        min-width: 0;
+      }
+
+      @media (max-width: 767px) {
+        /* 16px verhindert das automatische Hineinzoomen auf iOS */
+        input,
+        select,
+        textarea {
+          font-size: 16px !important;
+        }
+
+        /* Tabellen werden auf dem Handy zu Karten */
+        .responsive-table,
+        .responsive-table tbody,
+        .responsive-table tr,
+        .responsive-table td {
+          display: block;
+          width: 100%;
+        }
+
+        .responsive-table thead {
+          display: none;
+        }
+
+        .responsive-table tr {
+          padding: 0.75rem 1rem;
+        }
+
+        .responsive-table td {
+          display: flex;
+          align-items: baseline;
+          justify-content: space-between;
+          gap: 1rem;
+          padding: 0.35rem 0;
+          text-align: right;
+          overflow-wrap: anywhere;
+        }
+
+        .responsive-table td::before {
+          content: attr(data-label);
+          flex-shrink: 0;
+          font-size: 0.7rem;
+          font-weight: 600;
+          letter-spacing: 0.05em;
+          text-align: left;
+          text-transform: uppercase;
+          color: #64748b;
+        }
+
+        .responsive-table td.td-action {
+          justify-content: flex-end;
+          padding-top: 0.6rem;
+        }
+
+        .responsive-table td.td-action::before {
+          content: none;
+        }
+      }
+
       @media print {
         @page {
           size: A4 landscape;
@@ -93,7 +157,7 @@
       <form
         id="login-form"
         onsubmit="signIn(event)"
-        class="bg-white w-full max-w-md rounded-xl shadow-sm border border-slate-200 p-8 space-y-5"
+        class="bg-white w-full max-w-md rounded-xl shadow-sm border border-slate-200 p-6 sm:p-8 space-y-5"
       >
         <div>
           <div class="text-3xl mb-3">⛪</div>
@@ -148,59 +212,59 @@
       <!-- Header -->
       <header class="bg-slate-900 text-white shadow-md">
       <div
-        class="max-w-7xl mx-auto px-4 py-4 flex flex-col md:flex-row justify-between items-center gap-4"
+        class="max-w-7xl mx-auto px-4 py-3 md:py-4 flex flex-wrap xl:flex-nowrap justify-between items-center gap-3 xl:gap-4"
       >
-        <div class="flex items-center space-x-3">
-          <span class="text-3xl">⛪</span>
+        <div class="flex items-center space-x-3 order-1 min-w-0">
+          <span class="text-2xl sm:text-3xl">⛪</span>
           <div>
-            <h1 class="text-xl font-bold tracking-tight">Messdiener-Manager</h1>
-            <p class="text-xs text-slate-400">
+            <h1 class="text-lg sm:text-xl font-bold tracking-tight">Messdiener-Manager</h1>
+            <p class="hidden sm:block text-xs text-slate-400">
               Cloud-Datenbank (Supabase) synchronisiert
             </p>
           </div>
         </div>
         <!-- Navigation Tabs -->
         <nav
-          class="flex flex-wrap gap-2 bg-slate-800 p-1.5 rounded-lg border border-slate-700"
+          class="order-3 xl:order-2 w-full xl:w-auto flex flex-wrap gap-1.5 xl:gap-2 bg-slate-800 p-1.5 rounded-lg border border-slate-700"
         >
           <button
             onclick="switchTab('dashboard')"
             id="btn-dashboard"
-            class="px-4 py-2 text-sm font-medium rounded-md transition bg-brand-600 text-white"
+            class="flex-1 xl:flex-none whitespace-nowrap px-3 xl:px-4 py-2 text-sm font-medium rounded-md transition bg-brand-600 text-white"
           >
             Übersicht
           </button>
           <button
             onclick="switchTab('messdiener')"
             id="btn-messdiener"
-            class="px-4 py-2 text-sm font-medium rounded-md transition text-slate-300 hover:text-white"
+            class="flex-1 xl:flex-none whitespace-nowrap px-3 xl:px-4 py-2 text-sm font-medium rounded-md transition text-slate-300 hover:text-white"
           >
             Messdiener
           </button>
           <button
             onclick="switchTab('gottesdienste')"
             id="btn-gottesdienste"
-            class="px-4 py-2 text-sm font-medium rounded-md transition text-slate-300 hover:text-white"
+            class="flex-1 xl:flex-none whitespace-nowrap px-3 xl:px-4 py-2 text-sm font-medium rounded-md transition text-slate-300 hover:text-white"
           >
             Gottesdienste
           </button>
           <button
             onclick="switchTab('einteilung')"
             id="btn-einteilung"
-            class="px-4 py-2 text-sm font-medium rounded-md transition text-slate-300 hover:text-white"
+            class="flex-1 xl:flex-none whitespace-nowrap px-3 xl:px-4 py-2 text-sm font-medium rounded-md transition text-slate-300 hover:text-white"
           >
             Autom. Einteilung
           </button>
           <button
             onclick="switchTab('export')"
             id="btn-export"
-            class="px-4 py-2 text-sm font-medium rounded-md transition text-slate-300 hover:text-white"
+            class="flex-1 xl:flex-none whitespace-nowrap px-3 xl:px-4 py-2 text-sm font-medium rounded-md transition text-slate-300 hover:text-white"
           >
             Export
           </button>
         </nav>
-        <div class="flex items-center gap-3">
-          <span id="signed-in-email" class="text-xs text-slate-300"></span>
+        <div class="flex items-center gap-2 sm:gap-3 order-2 xl:order-3 min-w-0">
+          <span id="signed-in-email" class="hidden sm:inline-block truncate max-w-[14rem] text-xs text-slate-300"></span>
           <button
             onclick="signOut()"
             class="px-3 py-2 text-sm font-medium rounded-md border border-slate-600 hover:bg-slate-800 transition"
@@ -212,12 +276,12 @@
       </header>
 
     <!-- Main Container -->
-    <main class="max-w-7xl mx-auto px-4 py-8 flex-grow w-full">
+    <main class="max-w-7xl mx-auto px-4 py-6 md:py-8 flex-grow w-full">
       <!-- TAB: DASHBOARD -->
       <section id="tab-dashboard" class="space-y-6">
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6">
           <div
-            class="bg-white p-6 rounded-xl shadow-sm border border-slate-200 flex items-center justify-between"
+            class="bg-white p-4 sm:p-6 rounded-xl shadow-sm border border-slate-200 flex items-center justify-between"
           >
             <div>
               <p class="text-sm font-medium text-slate-500">
@@ -235,7 +299,7 @@
             </div>
           </div>
           <div
-            class="bg-white p-6 rounded-xl shadow-sm border border-slate-200 flex items-center justify-between"
+            class="bg-white p-4 sm:p-6 rounded-xl shadow-sm border border-slate-200 flex items-center justify-between"
           >
             <div>
               <p class="text-sm font-medium text-slate-500">
@@ -253,7 +317,7 @@
             </div>
           </div>
           <div
-            class="bg-white p-6 rounded-xl shadow-sm border border-slate-200 flex items-center justify-between"
+            class="bg-white p-4 sm:p-6 rounded-xl shadow-sm border border-slate-200 flex items-center justify-between"
           >
             <div>
               <p class="text-sm font-medium text-slate-500">Status DB</p>
@@ -267,7 +331,7 @@
           </div>
         </div>
 
-        <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+        <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-4 sm:p-6">
           <h3 class="text-lg font-bold text-slate-900 mb-2">
             Live-Synchronisation
           </h3>
@@ -282,22 +346,22 @@
 
       <!-- TAB: MESSDIENER -->
       <section id="tab-messdiener" class="hidden space-y-6">
-        <div class="flex justify-between items-center">
+        <div class="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3">
           <h2 class="text-xl font-bold text-slate-900">
             Messdiener-Verwaltung
           </h2>
           <button
             onclick="openMessdienerModal()"
-            class="bg-brand-600 hover:bg-brand-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition shadow-sm"
+            class="w-full sm:w-auto bg-brand-600 hover:bg-brand-700 text-white px-4 py-2.5 sm:py-2 rounded-lg text-sm font-medium transition shadow-sm"
           >
             + Messdiener hinzufügen
           </button>
         </div>
 
         <div
-          class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden"
+          class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-x-auto"
         >
-          <table class="w-full text-left border-collapse">
+          <table class="responsive-table w-full text-left border-collapse">
             <thead
               class="bg-slate-50 text-slate-500 text-xs uppercase tracking-wider border-b border-slate-200"
             >
@@ -320,20 +384,20 @@
 
       <!-- TAB: GOTTESDIENSTE -->
       <section id="tab-gottesdienste" class="hidden space-y-6">
-        <div class="flex justify-between items-center">
+        <div class="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3">
           <h2 class="text-xl font-bold text-slate-900">Gottesdienst-Planung</h2>
           <button
             onclick="openGottesdienstModal()"
-            class="bg-brand-600 hover:bg-brand-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition shadow-sm"
+            class="w-full sm:w-auto bg-brand-600 hover:bg-brand-700 text-white px-4 py-2.5 sm:py-2 rounded-lg text-sm font-medium transition shadow-sm"
           >
             + Gottesdienst hinzufügen
           </button>
         </div>
 
         <div
-          class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden"
+          class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-x-auto"
         >
-          <table class="w-full text-left border-collapse">
+          <table class="responsive-table w-full text-left border-collapse">
             <thead
               class="bg-slate-50 text-slate-500 text-xs uppercase tracking-wider border-b border-slate-200"
             >
@@ -357,7 +421,7 @@
       <!-- TAB: AUTOM. EINTEILUNG -->
       <section id="tab-einteilung" class="hidden space-y-6">
         <div
-          class="flex justify-between items-center bg-white p-6 rounded-xl shadow-sm border border-slate-200"
+          class="flex flex-col md:flex-row md:justify-between md:items-center gap-4 bg-white p-4 sm:p-6 rounded-xl shadow-sm border border-slate-200"
         >
           <div>
             <h2 class="text-xl font-bold text-slate-900">
@@ -370,14 +434,14 @@
           </div>
           <button
             onclick="runAutoAssign()"
-            class="bg-brand-600 hover:bg-brand-700 text-white px-6 py-3 rounded-lg text-sm font-semibold transition shadow-md flex items-center gap-2"
+            class="w-full md:w-auto justify-center bg-brand-600 hover:bg-brand-700 text-white px-6 py-3 rounded-lg text-sm font-semibold transition shadow-md flex items-center gap-2"
           >
             ⚡ Jetzt automatisch einteilen & speichern
           </button>
         </div>
 
         <div
-          class="grid grid-cols-1 sm:grid-cols-2 gap-4 bg-white p-6 rounded-xl shadow-sm border border-slate-200"
+          class="grid grid-cols-1 sm:grid-cols-2 gap-4 bg-white p-4 sm:p-6 rounded-xl shadow-sm border border-slate-200"
         >
           <div>
             <label
@@ -413,7 +477,7 @@
       <!-- TAB: EXPORT -->
       <section id="tab-export" class="hidden space-y-6">
         <div
-          class="bg-white p-6 rounded-xl shadow-sm border border-slate-200 space-y-6"
+          class="bg-white p-4 sm:p-6 rounded-xl shadow-sm border border-slate-200 space-y-6"
         >
           <div>
             <h2 class="text-xl font-bold text-slate-900">
@@ -426,7 +490,7 @@
 
           <button
             onclick="generateWhatsAppExport()"
-            class="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2.5 rounded-lg text-sm font-medium transition flex items-center gap-2"
+            class="w-full sm:w-auto justify-center bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2.5 rounded-lg text-sm font-medium transition flex items-center gap-2"
           >
             📱 WhatsApp Text generieren
           </button>
@@ -434,7 +498,7 @@
           <div class="border-t border-slate-100 pt-5">
             <button
               onclick="exportSchedulePdf()"
-              class="bg-rose-600 hover:bg-rose-700 text-white px-4 py-2.5 rounded-lg text-sm font-medium transition flex items-center gap-2"
+              class="w-full sm:w-auto justify-center bg-rose-600 hover:bg-rose-700 text-white px-4 py-2.5 rounded-lg text-sm font-medium transition flex items-center gap-2"
             >
               PDF-Einteilung drucken / speichern
             </button>
@@ -451,7 +515,7 @@
             <textarea
               id="whatsapp-output"
               rows="10"
-              class="w-full p-4 font-mono text-xs bg-slate-50 border border-slate-200 rounded-lg focus:outline-none"
+              class="w-full p-3 sm:p-4 font-mono text-xs bg-slate-50 border border-slate-200 rounded-lg focus:outline-none"
               readonly
             ></textarea>
           </div>
@@ -464,7 +528,7 @@
       id="modal-messdiener"
       class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm hidden items-center justify-center p-4 z-50"
     >
-      <div class="bg-white rounded-xl max-w-md w-full p-6 shadow-xl space-y-4">
+      <div class="bg-white rounded-xl max-w-md w-full max-h-[90vh] overflow-y-auto p-5 sm:p-6 shadow-xl space-y-4">
         <h3 class="text-lg font-bold text-slate-900">Messdiener hinzufügen</h3>
         <div>
           <label class="block text-sm font-medium text-slate-700 mb-1"
@@ -493,7 +557,7 @@
             >Verfügbare Wochentage</label
           >
           <div id="m-days" class="grid grid-cols-2 gap-2 text-sm">
-            <label class="flex items-center gap-2"
+            <label class="flex items-center gap-2 py-1"
               ><input
                 type="checkbox"
                 value="1"
@@ -501,7 +565,7 @@
               />
               Montag</label
             >
-            <label class="flex items-center gap-2"
+            <label class="flex items-center gap-2 py-1"
               ><input
                 type="checkbox"
                 value="2"
@@ -509,7 +573,7 @@
               />
               Dienstag</label
             >
-            <label class="flex items-center gap-2"
+            <label class="flex items-center gap-2 py-1"
               ><input
                 type="checkbox"
                 value="3"
@@ -517,7 +581,7 @@
               />
               Mittwoch</label
             >
-            <label class="flex items-center gap-2"
+            <label class="flex items-center gap-2 py-1"
               ><input
                 type="checkbox"
                 value="4"
@@ -525,7 +589,7 @@
               />
               Donnerstag</label
             >
-            <label class="flex items-center gap-2"
+            <label class="flex items-center gap-2 py-1"
               ><input
                 type="checkbox"
                 value="5"
@@ -533,7 +597,7 @@
               />
               Freitag</label
             >
-            <label class="flex items-center gap-2"
+            <label class="flex items-center gap-2 py-1"
               ><input
                 type="checkbox"
                 value="6"
@@ -541,7 +605,7 @@
               />
               Samstag</label
             >
-            <label class="flex items-center gap-2"
+            <label class="flex items-center gap-2 py-1"
               ><input
                 type="checkbox"
                 value="0"
@@ -551,16 +615,16 @@
             >
           </div>
         </div>
-        <div class="flex justify-end gap-3 pt-4 border-t border-slate-100">
+        <div class="flex flex-col-reverse sm:flex-row sm:justify-end gap-2 sm:gap-3 pt-4 border-t border-slate-100">
           <button
             onclick="closeModals()"
-            class="px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100 rounded-lg"
+            class="w-full sm:w-auto px-4 py-2.5 sm:py-2 text-sm font-medium text-slate-600 border border-slate-200 sm:border-0 hover:bg-slate-100 rounded-lg"
           >
             Abbrechen
           </button>
           <button
             onclick="saveMessdiener()"
-            class="px-4 py-2 text-sm font-medium text-white bg-brand-600 hover:bg-brand-700 rounded-lg"
+            class="w-full sm:w-auto px-4 py-2.5 sm:py-2 text-sm font-medium text-white bg-brand-600 hover:bg-brand-700 rounded-lg"
           >
             Speichern
           </button>
@@ -573,7 +637,7 @@
       id="modal-gottesdienst"
       class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm hidden items-center justify-center p-4 z-50"
     >
-      <div class="bg-white rounded-xl max-w-md w-full p-6 shadow-xl space-y-4">
+      <div class="bg-white rounded-xl max-w-md w-full max-h-[90vh] overflow-y-auto p-5 sm:p-6 shadow-xl space-y-4">
         <h3 class="text-lg font-bold text-slate-900">Gottesdienst anlegen</h3>
         <div>
           <label class="block text-sm font-medium text-slate-700 mb-1"
@@ -586,7 +650,7 @@
             class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-brand-500 focus:outline-none"
           />
         </div>
-        <div class="grid grid-cols-2 gap-4">
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
             <label class="block text-sm font-medium text-slate-700 mb-1"
               >Datum</label
@@ -662,16 +726,16 @@
             />
           </div>
         </div>
-        <div class="flex justify-end gap-3 pt-4 border-t border-slate-100">
+        <div class="flex flex-col-reverse sm:flex-row sm:justify-end gap-2 sm:gap-3 pt-4 border-t border-slate-100">
           <button
             onclick="closeModals()"
-            class="px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100 rounded-lg"
+            class="w-full sm:w-auto px-4 py-2.5 sm:py-2 text-sm font-medium text-slate-600 border border-slate-200 sm:border-0 hover:bg-slate-100 rounded-lg"
           >
             Abbrechen
           </button>
           <button
             onclick="saveGottesdienst()"
-            class="px-4 py-2 text-sm font-medium text-white bg-brand-600 hover:bg-brand-700 rounded-lg"
+            class="w-full sm:w-auto px-4 py-2.5 sm:py-2 text-sm font-medium text-white bg-brand-600 hover:bg-brand-700 rounded-lg"
           >
             Speichern
           </button>
@@ -891,11 +955,11 @@
             .map(
               (m) => `
                 <tr class="hover:bg-slate-50 transition">
-                    <td class="p-4 font-medium text-slate-900">${m.name}</td>
-                    <td class="p-4"><span class="px-2.5 py-1 text-xs rounded-full font-medium ${m.type === "Senior" ? "bg-purple-100 text-purple-700" : "bg-blue-100 text-blue-700"}">${m.type === "Senior" ? "Leiter" : "Kinder"}</span></td>
-                    <td class="p-4 text-slate-600">${(m.days || []).map((d) => dayNames[d]).join(", ")}</td>
-                    <td class="p-4 text-right">
-                        <button onclick="deleteMessdiener('${m.id}')" class="text-rose-600 hover:text-rose-800 text-xs font-medium">Löschen</button>
+                    <td data-label="Name" class="p-4 font-medium text-slate-900">${m.name}</td>
+                    <td data-label="Rolle" class="p-4"><span class="px-2.5 py-1 text-xs rounded-full font-medium ${m.type === "Senior" ? "bg-purple-100 text-purple-700" : "bg-blue-100 text-blue-700"}">${m.type === "Senior" ? "Leiter" : "Kinder"}</span></td>
+                    <td data-label="Wochentage" class="p-4 text-slate-600">${(m.days || []).map((d) => dayNames[d]).join(", ")}</td>
+                    <td class="td-action p-4 text-right">
+                        <button onclick="deleteMessdiener('${m.id}')" class="text-rose-600 hover:text-rose-800 text-xs font-medium px-3 py-2 rounded-lg border border-rose-200 md:border-0 md:p-0">Löschen</button>
                     </td>
                 </tr>
             `,
@@ -908,11 +972,11 @@
             .map(
               (g) => `
                 <tr class="hover:bg-slate-50 transition">
-                    <td class="p-4 font-medium text-slate-900">${g.date} um ${g.time} Uhr</td>
-                    <td class="p-4">${g.title}</td>
-                    <td class="p-4 text-slate-600">${g.seniors} Leiter, ${g.juniors} Kinder</td>
-                    <td class="p-4 text-right">
-                        <button onclick="deleteGottesdienst('${g.id}')" class="text-rose-600 hover:text-rose-800 text-xs font-medium">Löschen</button>
+                    <td data-label="Termin" class="p-4 font-medium text-slate-900">${g.date} um ${g.time} Uhr</td>
+                    <td data-label="Anlass" class="p-4">${g.title}</td>
+                    <td data-label="Dienste" class="p-4 text-slate-600">${g.seniors} Leiter, ${g.juniors} Kinder</td>
+                    <td class="td-action p-4 text-right">
+                        <button onclick="deleteGottesdienst('${g.id}')" class="text-rose-600 hover:text-rose-800 text-xs font-medium px-3 py-2 rounded-lg border border-rose-200 md:border-0 md:p-0">Löschen</button>
                     </td>
                 </tr>
             `,
@@ -1112,13 +1176,13 @@
         const container = document.getElementById("schedule-results");
         const scheduleGottesdienste = getGottesdiensteInSchedulePeriod();
         if (scheduleGottesdienste.length === 0) {
-          container.innerHTML = `<div class="bg-white p-8 rounded-xl shadow-sm border border-slate-200 text-center text-slate-500">Im ausgewählten Zeitraum gibt es keine Gottesdienste.</div>`;
+          container.innerHTML = `<div class="bg-white p-6 sm:p-8 rounded-xl shadow-sm border border-slate-200 text-center text-slate-500">Im ausgewählten Zeitraum gibt es keine Gottesdienste.</div>`;
           return;
         }
         if (
           !scheduleGottesdienste.some((g) => state.assignments[g.id])
         ) {
-          container.innerHTML = `<div class="bg-white p-8 rounded-xl shadow-sm border border-slate-200 text-center text-slate-500">Noch kein Plan generiert. Klicke oben auf „Jetzt automatisch einteilen“.</div>`;
+          container.innerHTML = `<div class="bg-white p-6 sm:p-8 rounded-xl shadow-sm border border-slate-200 text-center text-slate-500">Noch kein Plan generiert. Klicke oben auf „Jetzt automatisch einteilen“.</div>`;
           return;
         }
 
@@ -1129,7 +1193,7 @@
               juniors: [],
             };
             return `
-                    <div class="bg-white p-6 rounded-xl shadow-sm border border-slate-200 space-y-3">
+                    <div class="bg-white p-4 sm:p-6 rounded-xl shadow-sm border border-slate-200 space-y-3">
                         <div class="flex justify-between items-start">
                             <div>
                                 <h3 class="font-bold text-slate-900 text-lg">${g.title}</h3>
@@ -1139,13 +1203,13 @@
                         <div class="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
                             <div class="bg-purple-50 p-3 rounded-lg border border-purple-100">
                                 <span class="text-xs font-bold text-purple-700 uppercase tracking-wide">Leiter</span>
-                                <div class="mt-1 font-medium text-purple-900 text-sm">
+                                <div class="mt-1 font-medium text-purple-900 text-sm break-words">
                                     ${assigned.seniors.length ? assigned.seniors.map((s) => s.name).join(", ") : '<span class="text-rose-600">Niemand eingeteilt / verfügbar</span>'}
                                 </div>
                             </div>
                             <div class="bg-blue-50 p-3 rounded-lg border border-blue-100">
                                 <span class="text-xs font-bold text-blue-700 uppercase tracking-wide">Kinder</span>
-                                <div class="mt-1 font-medium text-blue-900 text-sm">
+                                <div class="mt-1 font-medium text-blue-900 text-sm break-words">
                                     ${assigned.juniors.length ? assigned.juniors.map((j) => j.name).join(", ") : '<span class="text-rose-600">Niemand eingeteilt / verfügbar</span>'}
                                 </div>
                             </div>
