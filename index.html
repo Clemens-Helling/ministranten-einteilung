@@ -927,7 +927,11 @@
         const a = state.assignments[g.id] || { seniors: [], juniors: [] };
         const people = [...(a.seniors || []), ...(a.juniors || [])];
         if (people.length === 0) return '';
-        if (state.messdiener.length > 0 && people.length >= state.messdiener.length) return 'alle';
+        // "alle", wenn jeder an diesem Wochentag verfügbare Mini eingeteilt ist
+        const dow = new Date(`${g.date}T12:00:00`).getDay();
+        const available = state.messdiener.filter(m => (m.days || []).includes(dow));
+        const assignedIds = new Set(people.map(p => String(p.id)));
+        if (available.length > 0 && available.every(m => assignedIds.has(String(m.id)))) return 'alle';
         return people.map(p => p.name).join(', ');
       }
 
