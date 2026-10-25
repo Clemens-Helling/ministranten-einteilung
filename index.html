@@ -289,6 +289,53 @@
       </div>
     </div>
 
+    <!-- MODAL: GOTTESDIENST BEARBEITEN -->
+    <div id="modal-gottesdienst-edit" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm hidden items-center justify-center p-4 z-50">
+      <div class="bg-white rounded-xl max-w-lg w-full max-h-[90vh] overflow-y-auto p-6 shadow-xl space-y-4">
+        <h3 class="text-lg font-bold text-slate-900">Gottesdienst bearbeiten</h3>
+        <div>
+          <label class="block text-sm font-medium text-slate-700 mb-1">Anlass / Titel</label>
+          <input type="text" id="ge-title" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm" />
+        </div>
+        <div class="grid grid-cols-2 gap-4">
+          <div><label class="block text-sm font-medium text-slate-700 mb-1">Datum</label><input type="date" id="ge-date" onchange="onEditDateChange()" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm" /></div>
+          <div><label class="block text-sm font-medium text-slate-700 mb-1">Uhrzeit</label><input type="time" id="ge-time" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm" /></div>
+        </div>
+        <div class="grid grid-cols-2 gap-4">
+          <div><label class="block text-sm font-medium text-slate-700 mb-1">Leiter (benötigt)</label><input type="number" id="ge-seniors" min="0" oninput="updateEditCounters()" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm" /></div>
+          <div><label class="block text-sm font-medium text-slate-700 mb-1">Kinder (benötigt)</label><input type="number" id="ge-juniors" min="0" oninput="updateEditCounters()" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm" /></div>
+        </div>
+
+        <div class="border-t border-slate-100 pt-4">
+          <h4 class="text-sm font-semibold text-slate-900 mb-2">Einteilung</h4>
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <div class="flex justify-between items-baseline mb-1">
+                <span class="text-sm font-medium text-slate-700">Leiter</span>
+                <span id="ge-count-Senior" class="text-xs"></span>
+              </div>
+              <div id="ge-list-Senior" class="border border-slate-200 rounded-lg p-2 max-h-48 overflow-y-auto"></div>
+            </div>
+            <div>
+              <div class="flex justify-between items-baseline mb-1">
+                <span class="text-sm font-medium text-slate-700">Kinder</span>
+                <span id="ge-count-Junior" class="text-xs"></span>
+              </div>
+              <div id="ge-list-Junior" class="border border-slate-200 rounded-lg p-2 max-h-48 overflow-y-auto"></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="flex flex-wrap justify-between gap-3 pt-4 border-t border-slate-100">
+          <button onclick="deleteGottesdienstFromEdit()" class="px-4 py-2 text-sm text-rose-600 hover:bg-rose-50 rounded-lg">Löschen</button>
+          <div class="flex gap-3">
+            <button onclick="closeModals()" class="px-4 py-2 text-sm text-slate-600">Abbrechen</button>
+            <button onclick="saveGottesdienstEdit()" class="px-4 py-2 text-sm text-white bg-brand-600 rounded-lg">Speichern</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <div id="pdf-print-area" class="hidden"></div>
 
     <!-- JAVASCRIPT -->
@@ -427,13 +474,118 @@
         // Gottesdienste sortiert ausgeben
         const sortedGottesdienste = sortGottesdiensteByDate(state.gottesdienste);
         document.getElementById('gottesdienst-table-body').innerHTML = sortedGottesdienste.map(g => `
-          <tr class="hover:bg-slate-50 transition">
+          <tr class="hover:bg-slate-50 transition cursor-pointer" onclick="openGottesdienstEdit('${g.id}')" title="Zum Bearbeiten klicken">
             <td class="p-4" data-label="Datum & Uhrzeit">${g.date} ${g.time} Uhr</td>
             <td class="p-4" data-label="Anlass">${g.title}</td>
             <td class="p-4" data-label="Dienste">${g.seniors} Leiter, ${g.juniors} Kinder</td>
-            <td class="p-4 text-right"><button onclick="deleteGottesdienst('${g.id}')" class="text-rose-600 text-xs">Löschen</button></td>
+            <td class="p-4 text-right"><button onclick="event.stopPropagation(); deleteGottesdienst('${g.id}')" class="text-rose-600 text-xs">Löschen</button></td>
           </tr>
         `).join('');
+      }
+
+      // ---------- Gottesdienst bearbeiten ----------
+      let editingGottesdienstId = null;
+
+      function escHtml(s) {
+        return String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+      }
+
+      function openGottesdienstEdit(id) {
+        const g = state.gottesdienste.find(x => String(x.id) === String(id));
+        if (!g) return;
+        editingGottesdienstId = g.id;
+        document.getElementById('ge-title').value = g.title || '';
+        document.getElementById('ge-date').value = g.date || '';
+        document.getElementById('ge-time').value = g.time || '';
+        document.getElementById('ge-seniors').value = g.seniors;
+        document.getElementById('ge-juniors').value = g.juniors;
+        const a = state.assignments[g.id] || { seniors: [], juniors: [] };
+        renderEditAssignees({
+          Senior: (a.seniors || []).map(p => String(p.id)),
+          Junior: (a.juniors || []).map(p => String(p.id)),
+        });
+        const modal = document.getElementById('modal-gottesdienst-edit');
+        modal.classList.remove('hidden');
+        modal.classList.add('flex');
+      }
+
+      function getEditSelection() {
+        const pick = (type) => Array.from(document.querySelectorAll(`#ge-list-${type} input:checked`)).map(cb => cb.value);
+        return { Senior: pick('Senior'), Junior: pick('Junior') };
+      }
+
+      // Zeichnet die Auswahllisten (Leiter / Kinder) neu; selected = bereits angehakte IDs
+      function renderEditAssignees(selected) {
+        const date = document.getElementById('ge-date').value;
+        const dow = date ? new Date(`${date}T12:00:00`).getDay() : null;
+        ['Senior', 'Junior'].forEach(type => {
+          const people = state.messdiener.filter(m => m.type === type);
+          document.getElementById('ge-list-' + type).innerHTML = people.length === 0
+            ? '<p class="text-xs text-slate-400">Keine Einträge vorhanden.</p>'
+            : people.map(m => {
+                const available = dow === null || (m.days || []).includes(dow);
+                const checked = selected[type].includes(String(m.id)) ? 'checked' : '';
+                return `<label class="flex items-center gap-2 text-sm py-1">
+                  <input type="checkbox" value="${escHtml(m.id)}" ${checked} onchange="updateEditCounters()" class="rounded text-brand-600" />
+                  <span class="${available ? 'text-slate-800' : 'text-slate-400'}">${escHtml(m.name)}</span>
+                  ${available ? '' : '<span class="text-xs text-amber-600">(an diesem Tag nicht verfügbar)</span>'}
+                </label>`;
+              }).join('');
+        });
+        updateEditCounters();
+      }
+
+      function onEditDateChange() {
+        renderEditAssignees(getEditSelection());
+      }
+
+      function updateEditCounters() {
+        const sel = getEditSelection();
+        const need = { Senior: parseInt(document.getElementById('ge-seniors').value) || 0, Junior: parseInt(document.getElementById('ge-juniors').value) || 0 };
+        ['Senior', 'Junior'].forEach(type => {
+          const el = document.getElementById('ge-count-' + type);
+          const have = sel[type].length;
+          el.textContent = `${have} von ${need[type]} ausgewählt`;
+          el.className = 'text-xs ' + (have === need[type] ? 'text-emerald-600' : 'text-amber-600');
+        });
+      }
+
+      async function saveGottesdienstEdit() {
+        const id = editingGottesdienstId;
+        if (id === null) return;
+        const title = document.getElementById('ge-title').value.trim();
+        const date = document.getElementById('ge-date').value;
+        const time = document.getElementById('ge-time').value;
+        const seniors = parseInt(document.getElementById('ge-seniors').value) || 0;
+        const juniors = parseInt(document.getElementById('ge-juniors').value) || 0;
+        if (!title) return alert('Bitte Anlass / Titel angeben.');
+        if (!date) return alert('Bitte Datum angeben.');
+
+        const sel = getEditSelection();
+        const byId = (type) => sel[type].map(sid => state.messdiener.find(m => String(m.id) === sid)).filter(Boolean);
+
+        const { error } = await supabaseClient.from('gottesdienste').update({ title, date, time, seniors, juniors }).eq('id', id);
+        if (error) return alert('Speichern fehlgeschlagen: ' + error.message);
+
+        const { error: aErr } = await supabaseClient.from('assignments').upsert([{
+          gottesdienst_id: id,
+          seniors: byId('Senior'),
+          juniors: byId('Junior'),
+        }]);
+        if (aErr) return alert('Gottesdienst gespeichert, aber die Einteilung nicht: ' + aErr.message);
+
+        editingGottesdienstId = null;
+        closeModals();
+        loadDataFromDB();
+      }
+
+      async function deleteGottesdienstFromEdit() {
+        if (editingGottesdienstId === null) return;
+        if (!confirm('Diesen Gottesdienst wirklich löschen?')) return;
+        const id = editingGottesdienstId;
+        editingGottesdienstId = null;
+        closeModals();
+        await deleteGottesdienst(id);
       }
 
       function openMessdienerModal() { document.getElementById('modal-messdiener').classList.remove('hidden'); document.getElementById('modal-messdiener').classList.add('flex'); }
