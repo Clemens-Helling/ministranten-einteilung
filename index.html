@@ -481,6 +481,31 @@
             <td class="p-4 text-right"><button onclick="event.stopPropagation(); deleteGottesdienst('${g.id}')" class="text-rose-600 text-xs">Löschen</button></td>
           </tr>
         `).join('');
+
+        renderScheduleResults();
+      }
+
+      // ---------- Einteilung anzeigen ----------
+      function renderScheduleResults() {
+        const box = document.getElementById('schedule-results');
+        if (!box) return;
+        const items = getGottesdiensteInSchedulePeriod();
+        if (items.length === 0) {
+          box.innerHTML = '<p class="text-sm text-slate-500 bg-white p-4 rounded-xl border border-slate-200">Keine Gottesdienste im gewählten Zeitraum.</p>';
+          return;
+        }
+        const names = (list) => (list || []).map(p => escHtml(p.name)).join(', ');
+        box.innerHTML = items.map(g => {
+          const a = state.assignments[g.id] || { seniors: [], juniors: [] };
+          const sOk = (a.seniors || []).length >= g.seniors;
+          const jOk = (a.juniors || []).length >= g.juniors;
+          return `
+            <div class="bg-white p-4 rounded-xl shadow-sm border border-slate-200 cursor-pointer hover:bg-slate-50 transition" onclick="openGottesdienstEdit('${g.id}')" title="Zum Bearbeiten klicken">
+              <div class="font-semibold text-slate-900">${escHtml(g.date)} ${escHtml(g.time)} Uhr – ${escHtml(g.title)}</div>
+              <div class="text-sm mt-2 ${sOk ? 'text-slate-700' : 'text-amber-600'}"><span class="font-medium">Leiter:</span> ${names(a.seniors) || 'Keine'}</div>
+              <div class="text-sm ${jOk ? 'text-slate-700' : 'text-amber-600'}"><span class="font-medium">Kinder:</span> ${names(a.juniors) || 'Keine'}</div>
+            </div>`;
+        }).join('');
       }
 
       // ---------- Gottesdienst bearbeiten ----------
@@ -683,6 +708,9 @@
         document.getElementById('pdf-print-area').innerHTML = html;
         window.print();
       }
+
+      document.getElementById('schedule-start').addEventListener('change', renderScheduleResults);
+      document.getElementById('schedule-end').addEventListener('change', renderScheduleResults);
 
       // Anwendung starten & Auth-Überwachung initialisieren
       initializeAuth();
