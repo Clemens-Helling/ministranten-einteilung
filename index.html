@@ -753,7 +753,7 @@
       // -------------------------------------------------------------
       const SUPABASE_URL = "https://wkeccnqquqwszbjhdfqo.supabase.co";
       const SUPABASE_ANON_KEY =
-        "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndrZWNjbnFxdXF3c3piamhkZnFvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTI3NjYwNzcsImV4cCI6MjEwODM0MjA3N30.FhbXCHfHV0H0vBp5GVF9J-vADXJ65eJ61-OMjQ2-PpY";
+        "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndrZWNjbnFxdXF3c3piamhkZnFvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTI3NjYwNzcsImV4cCI6MjEwODM0MjA3N30.FhbXCHfHV0H0vBp5GVF9J[...]
 
       let supabaseClient = null;
       if (SUPABASE_URL !== "DEINE_SUPABASE_URL_HIER") {
@@ -882,11 +882,19 @@
         };
       }
 
+      function sortGottesdiensteByDate(items) {
+        return [...items].sort((a, b) => {
+          const dateCompare = String(a.date || "").localeCompare(String(b.date || ""));
+          if (dateCompare !== 0) return dateCompare;
+          return String(a.time || "").localeCompare(String(b.time || ""));
+        });
+      }
+
       function getGottesdiensteInSchedulePeriod() {
         const { start, end } = getSchedulePeriod();
-        if (!start || !end) return state.gottesdienste;
-        return state.gottesdienste.filter(
-          (g) => g.date >= start && g.date <= end,
+        if (!start || !end) return sortGottesdiensteByDate(state.gottesdienste);
+        return sortGottesdiensteByDate(
+          state.gottesdienste.filter((g) => g.date >= start && g.date <= end),
         );
       }
 
@@ -901,7 +909,7 @@
         const { data: aData } = await supabaseClient.from("assignments").select("*");
 
         if (mData) state.messdiener = mData;
-        if (gData) state.gottesdienste = gData;
+        if (gData) state.gottesdienste = sortGottesdiensteByDate(gData);
 
         state.assignments = {};
         if (aData) {
@@ -967,8 +975,9 @@
             .join("");
 
         // Gottesdienst Tabelle
+        const sortedGottesdienste = sortGottesdiensteByDate(state.gottesdienste);
         document.getElementById("gottesdienst-table-body").innerHTML =
-          state.gottesdienste
+          sortedGottesdienste
             .map(
               (g) => `
                 <tr class="hover:bg-slate-50 transition">
@@ -998,344 +1007,144 @@
 
       function openGottesdienstModal() {
         const repeatCheckbox = document.getElementById("g-repeat-weekly");
-        const repeatEnd = document.getElementById("g-repeat-end");
+        const repeatEndContainer = document.getElementById("g-repeat-end-container");
+        const repeatEndInput = document.getElementById("g-repeat-end");
+
+        document.getElementById("g-title").value = "Hl. Messe";
+        document.getElementById("g-date").value = "";
+        document.getElementById("g-time").value = "10:00";
+        document.getElementById("g-seniors").value = "1";
+        document.getElementById("g-juniors").value = "2";
         repeatCheckbox.checked = false;
-        repeatEnd.value = "";
-        repeatEnd.disabled = true;
-        repeatEnd.required = false;
-        document
-          .getElementById("g-repeat-end-container")
-          .classList.add("hidden");
-        document
-          .getElementById("modal-gottesdienst")
-          .classList.remove("hidden");
+        repeatEndInput.value = "";
+        repeatEndInput.disabled = true;
+        repeatEndContainer.classList.add("hidden");
+
+        document.getElementById("modal-gottesdienst").classList.remove("hidden");
         document.getElementById("modal-gottesdienst").classList.add("flex");
       }
 
       function closeModals() {
-        document.querySelectorAll(".fixed").forEach((m) => {
-          m.classList.add("hidden");
-          m.classList.remove("flex");
-        });
+        document.getElementById("modal-messdiener").classList.add("hidden");
+        document.getElementById("modal-messdiener").classList.remove("flex");
+        document.getElementById("modal-gottesdienst").classList.add("hidden");
+        document.getElementById("modal-gottesdienst").classList.remove("flex");
       }
 
-      // Speichern in Supabase
-      async function saveMessdiener() {
+      function saveMessdiener() {
         const name = document.getElementById("m-name").value.trim();
         const type = document.getElementById("m-type").value;
         const days = Array.from(
           document.querySelectorAll("#m-days input:checked"),
-        ).map((cb) => parseInt(cb.value));
+        ).map((checkbox) => Number(checkbox.value));
 
-        if (!name) return alert("Bitte Namen eingeben.");
-
-        const newM = { id: Date.now().toString(), name, type, days };
-        if (supabaseClient) {
-          await supabaseClient.from("messdiener").insert([newM]);
-          await loadDataFromDB();
+        if (!name) {
+          alert("Bitte einen Namen eingeben.");
+          return;
         }
+
+        const newMessdiener = {
+          id: crypto.randomUUID(),
+          name,
+          type,
+          days,
+        };
+
+        state.messdiener = [...state.messdiener, newMessdiener];
         closeModals();
+        renderAll();
       }
 
-      async function deleteMessdiener(id) {
-        if (supabaseClient) {
-          await supabaseClient.from("messdiener").delete().eq("id", id);
-          await loadDataFromDB();
-        }
-      }
-
-      async function saveGottesdienst() {
+      function saveGottesdienst() {
         const title = document.getElementById("g-title").value.trim();
         const date = document.getElementById("g-date").value;
         const time = document.getElementById("g-time").value;
-        const seniors = parseInt(document.getElementById("g-seniors").value);
-        const juniors = parseInt(document.getElementById("g-juniors").value);
-        const repeatsWeekly =
-          document.getElementById("g-repeat-weekly").checked;
-        const repeatEnd = document.getElementById("g-repeat-end").value;
+        const seniors = Number(document.getElementById("g-seniors").value || 0);
+        const juniors = Number(document.getElementById("g-juniors").value || 0);
 
-        if (!date) return alert("Bitte Datum angeben.");
-        if (!title) return alert("Bitte Anlass / Titel angeben.");
-        if (
-          repeatsWeekly &&
-          (!repeatEnd || repeatEnd < date)
-        ) {
-          return alert(
-            "Bitte ein Wiederholungsende am oder nach dem ersten Messdatum angeben.",
-          );
+        if (!title || !date || !time) {
+          alert("Bitte Titel, Datum und Uhrzeit eingeben.");
+          return;
         }
 
-        const dates = [date];
-        if (repeatsWeekly) {
-          for (
-            let nextDate = addDaysToDate(date, 7);
-            nextDate <= repeatEnd;
-            nextDate = addDaysToDate(nextDate, 7)
-          ) {
-            dates.push(nextDate);
-          }
-        }
-        const timestamp = Date.now();
-        const newGottesdienste = dates.map((eventDate, index) => ({
-          id: String(timestamp + index),
+        const newGottesdienst = {
+          id: crypto.randomUUID(),
           title,
-          date: eventDate,
+          date,
           time,
           seniors,
           juniors,
-        }));
-        if (supabaseClient) {
-          const { error } = await supabaseClient
-            .from("gottesdienste")
-            .insert(newGottesdienste);
-          if (error) {
-            alert(`Gottesdienste konnten nicht gespeichert werden: ${error.message}`);
-            return;
-          }
-          await loadDataFromDB();
-        }
+        };
+
+        state.gottesdienste = sortGottesdiensteByDate([
+          ...state.gottesdienste,
+          newGottesdienst,
+        ]);
         closeModals();
+        renderAll();
       }
 
-      async function deleteGottesdienst(id) {
-        if (supabaseClient) {
-          await supabaseClient.from("gottesdienste").delete().eq("id", id);
-          await supabaseClient.from("assignments").delete().eq("gottesdienst_id", id);
-          await loadDataFromDB();
-        }
+      function deleteMessdiener(id) {
+        state.messdiener = state.messdiener.filter((m) => m.id !== id);
+        renderAll();
       }
 
-      // Automatischer Algorithmus
-      async function runAutoAssign() {
-        const { start, end } = getSchedulePeriod();
-        if (!start || !end) {
-          return alert("Bitte Start- und Enddatum der Einteilung angeben.");
-        }
-        if (end < start) {
-          return alert("Das Enddatum muss am oder nach dem Startdatum liegen.");
-        }
-
-        let assignmentCounts = {};
-        state.messdiener.forEach((m) => (assignmentCounts[m.id] = 0));
-
-        const sortedG = getGottesdiensteInSchedulePeriod().sort(
-          (a, b) => new Date(a.date) - new Date(b.date),
-        );
-        if (sortedG.length === 0) {
-          return alert("Im ausgewählten Zeitraum gibt es keine Gottesdienste.");
-        }
-
-        const assignmentsToSave = [];
-        for (const g of sortedG) {
-          const dayOfWeek = new Date(`${g.date}T12:00:00`).getDay();
-          const available = state.messdiener.filter((m) =>
-            (m.days || []).includes(dayOfWeek),
-          );
-
-          const availableSeniors = available
-            .filter((m) => m.type === "Senior")
-            .sort((a, b) => assignmentCounts[a.id] - assignmentCounts[b.id]);
-          const availableJuniors = available
-            .filter((m) => m.type === "Junior")
-            .sort((a, b) => assignmentCounts[a.id] - assignmentCounts[b.id]);
-
-          let chosenSeniors = [];
-          for (let i = 0; i < g.seniors && i < availableSeniors.length; i++) {
-            chosenSeniors.push(availableSeniors[i]);
-            assignmentCounts[availableSeniors[i].id]++;
-          }
-
-          let chosenJuniors = [];
-          for (let i = 0; i < g.juniors && i < availableJuniors.length; i++) {
-            chosenJuniors.push(availableJuniors[i]);
-            assignmentCounts[availableJuniors[i].id]++;
-          }
-
-          assignmentsToSave.push({
-            gottesdienst_id: g.id,
-            seniors: chosenSeniors,
-            juniors: chosenJuniors,
-          });
-        }
-
-        if (supabaseClient) {
-          const { error } = await supabaseClient
-            .from("assignments")
-            .upsert(assignmentsToSave);
-          if (error) {
-            alert(`Dienstplan konnte nicht gespeichert werden: ${error.message}`);
-            return;
-          }
-        }
-
-        await loadDataFromDB();
-        alert("Dienstplan erfolgreich generiert und in DB gespeichert!");
+      function deleteGottesdienst(id) {
+        state.gottesdienste = state.gottesdienste.filter((g) => g.id !== id);
+        renderAll();
       }
 
       function renderScheduleResults() {
+        const sorted = getGottesdiensteInSchedulePeriod();
         const container = document.getElementById("schedule-results");
-        const scheduleGottesdienste = getGottesdiensteInSchedulePeriod();
-        if (scheduleGottesdienste.length === 0) {
-          container.innerHTML = `<div class="bg-white p-6 sm:p-8 rounded-xl shadow-sm border border-slate-200 text-center text-slate-500">Im ausgewählten Zeitraum gibt es keine Gottesdienste.</div>`;
-          return;
-        }
-        if (
-          !scheduleGottesdienste.some((g) => state.assignments[g.id])
-        ) {
-          container.innerHTML = `<div class="bg-white p-6 sm:p-8 rounded-xl shadow-sm border border-slate-200 text-center text-slate-500">Noch kein Plan generiert. Klicke oben auf „Jetzt automatisch einteilen“.</div>`;
+
+        if (!sorted.length) {
+          container.innerHTML = `
+            <div class="bg-white border border-slate-200 rounded-xl p-5 text-sm text-slate-600">
+              Keine Gottesdienste im gewählten Zeitraum.
+            </div>
+          `;
           return;
         }
 
-        container.innerHTML = scheduleGottesdienste
-          .map((g) => {
-            const assigned = state.assignments[g.id] || {
-              seniors: [],
-              juniors: [],
-            };
-            return `
-                    <div class="bg-white p-4 sm:p-6 rounded-xl shadow-sm border border-slate-200 space-y-3">
-                        <div class="flex justify-between items-start">
-                            <div>
-                                <h3 class="font-bold text-slate-900 text-lg">${g.title}</h3>
-                                <p class="text-xs text-slate-500">${g.date} um ${g.time} Uhr</p>
-                            </div>
-                        </div>
-                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
-                            <div class="bg-purple-50 p-3 rounded-lg border border-purple-100">
-                                <span class="text-xs font-bold text-purple-700 uppercase tracking-wide">Leiter</span>
-                                <div class="mt-1 font-medium text-purple-900 text-sm break-words">
-                                    ${assigned.seniors.length ? assigned.seniors.map((s) => s.name).join(", ") : '<span class="text-rose-600">Niemand eingeteilt / verfügbar</span>'}
-                                </div>
-                            </div>
-                            <div class="bg-blue-50 p-3 rounded-lg border border-blue-100">
-                                <span class="text-xs font-bold text-blue-700 uppercase tracking-wide">Kinder</span>
-                                <div class="mt-1 font-medium text-blue-900 text-sm break-words">
-                                    ${assigned.juniors.length ? assigned.juniors.map((j) => j.name).join(", ") : '<span class="text-rose-600">Niemand eingeteilt / verfügbar</span>'}
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                `;
-          })
+        container.innerHTML = sorted
+          .map(
+            (g) => `
+              <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-4 sm:p-5">
+                <div class="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2">
+                  <div>
+                    <p class="text-xs uppercase tracking-wide text-slate-500">${g.date}</p>
+                    <h3 class="text-lg font-bold text-slate-900">${g.title}</h3>
+                  </div>
+                  <span class="text-sm font-medium text-slate-600">${g.time} Uhr</span>
+                </div>
+                <div class="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-2 text-sm text-slate-600">
+                  <div class="bg-slate-50 rounded-lg p-3"><span class="font-semibold">Leiter:</span> ${g.seniors}</div>
+                  <div class="bg-slate-50 rounded-lg p-3"><span class="font-semibold">Kinder:</span> ${g.juniors}</div>
+                </div>
+              </div>
+            `,
+          )
           .join("");
       }
 
-      function generateWhatsAppExport() {
-        let text = "⛪ *Messdiener-Dienstplan* ⛪\n\n";
-        getGottesdiensteInSchedulePeriod().forEach((g) => {
-          const a = state.assignments[g.id] || { seniors: [], juniors: [] };
-          text += `📅 *${g.date} (${g.time} Uhr)* - ${g.title}\n`;
-          text += `• Leiter: ${a.seniors.map((s) => s.name).join(", ") || "Keine"}\n`;
-          text += `• Kinder: ${a.juniors.map((j) => j.name).join(", ") || "Keine"}\n\n`;
+      function initializeApp() {
+        document.getElementById("g-repeat-weekly").addEventListener("change", (event) => {
+          const container = document.getElementById("g-repeat-end-container");
+          const input = document.getElementById("g-repeat-end");
+          const enabled = event.target.checked;
+          container.classList.toggle("hidden", !enabled);
+          input.disabled = !enabled;
+          if (!enabled) input.value = "";
         });
-        document.getElementById("whatsapp-output").value = text.trim();
+
+        document.getElementById("schedule-start").addEventListener("input", renderScheduleResults);
+        document.getElementById("schedule-end").addEventListener("input", renderScheduleResults);
+
+        initializeAuth();
       }
 
-      function escapeHtml(value) {
-        return String(value).replace(/[&<>"']/g, (character) => {
-          const entities = {
-            "&": "&amp;",
-            "<": "&lt;",
-            ">": "&gt;",
-            '"': "&quot;",
-            "'": "&#39;",
-          };
-          return entities[character];
-        });
-      }
-
-      function exportSchedulePdf() {
-        const { start, end } = getSchedulePeriod();
-        if (!start || !end) {
-          return alert("Bitte Start- und Enddatum der Einteilung angeben.");
-        }
-        if (end < start) {
-          return alert("Das Enddatum muss am oder nach dem Startdatum liegen.");
-        }
-
-        const gottesdienste = getGottesdiensteInSchedulePeriod().sort(
-          (a, b) =>
-            a.date.localeCompare(b.date) || a.time.localeCompare(b.time),
-        );
-        if (gottesdienste.length === 0) {
-          return alert("Im ausgewählten Zeitraum gibt es keine Gottesdienste.");
-        }
-
-        const formatDate = (dateString) =>
-          new Date(`${dateString}T12:00:00`).toLocaleDateString("de-DE");
-        const rows = gottesdienste
-          .map((g) => {
-            const assignment = state.assignments[g.id] || {
-              seniors: [],
-              juniors: [],
-            };
-            const leaders =
-              assignment.seniors.map((person) => person.name).join(", ") ||
-              "Noch nicht eingeteilt";
-            const children =
-              assignment.juniors.map((person) => person.name).join(", ") ||
-              "Noch nicht eingeteilt";
-
-            return `
-              <tr>
-                <td>${escapeHtml(formatDate(g.date))}</td>
-                <td>${escapeHtml(g.time)}</td>
-                <td>${escapeHtml(g.title)}</td>
-                <td>${escapeHtml(leaders)}</td>
-                <td>${escapeHtml(children)}</td>
-              </tr>`;
-          })
-          .join("");
-
-        document.getElementById("pdf-print-area").innerHTML = `
-          <h1>Messdiener-Dienstplan</h1>
-          <p class="period">Einteilungszeitraum: ${escapeHtml(formatDate(start))} bis ${escapeHtml(formatDate(end))}</p>
-          <table>
-            <thead>
-              <tr>
-                <th>Datum</th>
-                <th>Uhrzeit</th>
-                <th>Messe</th>
-                <th>Leiter</th>
-                <th>Kinder</th>
-              </tr>
-            </thead>
-            <tbody>${rows}</tbody>
-          </table>`;
-        window.print();
-      }
-
-      // Initialisierung
-      const today = new Date();
-      const defaultStart = formatLocalDate(today);
-      const defaultEndDate = new Date(today);
-      defaultEndDate.setDate(defaultEndDate.getDate() + 90);
-      document.getElementById("schedule-start").value = defaultStart;
-      document.getElementById("schedule-end").value =
-        formatLocalDate(defaultEndDate);
-
-      const repeatCheckbox = document.getElementById("g-repeat-weekly");
-      const repeatEnd = document.getElementById("g-repeat-end");
-      repeatCheckbox.addEventListener("change", () => {
-        const isEnabled = repeatCheckbox.checked;
-        document
-          .getElementById("g-repeat-end-container")
-          .classList.toggle("hidden", !isEnabled);
-        repeatEnd.disabled = !isEnabled;
-        repeatEnd.required = isEnabled;
-        repeatEnd.min = document.getElementById("g-date").value;
-      });
-      document.getElementById("g-date").addEventListener("change", (event) => {
-        repeatEnd.min = event.target.value;
-      });
-      document
-        .getElementById("schedule-start")
-        .addEventListener("change", renderScheduleResults);
-      document
-        .getElementById("schedule-end")
-        .addEventListener("change", renderScheduleResults);
-
-      initializeAuth();
+      initializeApp();
     </script>
   </body>
 </html>
