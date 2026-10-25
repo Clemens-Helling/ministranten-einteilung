@@ -105,6 +105,7 @@
             <button onclick="switchTab('messdiener')" id="btn-messdiener" class="flex-1 xl:flex-none px-3 xl:px-4 py-2 text-sm font-medium rounded-md transition text-slate-300 hover:text-white">Messdiener</button>
             <button onclick="switchTab('gottesdienste')" id="btn-gottesdienste" class="flex-1 xl:flex-none px-3 xl:px-4 py-2 text-sm font-medium rounded-md transition text-slate-300 hover:text-white">Gottesdienste</button>
             <button onclick="switchTab('einteilung')" id="btn-einteilung" class="flex-1 xl:flex-none px-3 xl:px-4 py-2 text-sm font-medium rounded-md transition text-slate-300 hover:text-white">Autom. Einteilung</button>
+            <button onclick="switchTab('vorlagen')" id="btn-vorlagen" class="flex-1 xl:flex-none px-3 xl:px-4 py-2 text-sm font-medium rounded-md transition text-slate-300 hover:text-white">Vorlagen</button>
             <button onclick="switchTab('export')" id="btn-export" class="flex-1 xl:flex-none px-3 xl:px-4 py-2 text-sm font-medium rounded-md transition text-slate-300 hover:text-white">Export</button>
           </nav>
           <div class="flex items-center gap-2 sm:gap-3 order-2 xl:order-3 min-w-0">
@@ -216,6 +217,23 @@
           <div id="schedule-results" class="space-y-4"></div>
         </section>
 
+        <!-- TAB: VORLAGEN -->
+        <section id="tab-vorlagen" class="hidden space-y-6">
+          <div class="bg-white p-4 sm:p-6 rounded-xl shadow-sm border border-slate-200">
+            <h2 class="text-xl font-bold text-slate-900">Vorlagen bearbeiten</h2>
+            <p class="text-sm text-slate-500 mt-1">
+              Vorlagen für Sonntag und Freitag werden standardmäßig auf alle Gottesdienste an diesem Wochentag angewendet
+              (beim Anlegen und bei der automatischen Einteilung). Das lässt sich pro Vorlage abschalten.
+              Die Vorlagen werden in diesem Browser gespeichert.
+            </p>
+          </div>
+          <div id="template-cards" class="grid grid-cols-1 lg:grid-cols-3 gap-4"></div>
+          <div class="flex flex-wrap items-center gap-3">
+            <button onclick="saveTemplatesFromForm(true)" class="bg-brand-600 hover:bg-brand-700 text-white px-5 py-2.5 rounded-lg text-sm font-medium transition shadow-sm">Vorlagen speichern</button>
+            <button onclick="resetTemplates()" class="px-4 py-2.5 text-sm text-slate-600 hover:bg-slate-100 rounded-lg">Auf Standard zurücksetzen</button>
+          </div>
+        </section>
+
         <!-- TAB: EXPORT -->
         <section id="tab-export" class="hidden space-y-6">
           <div class="bg-white p-4 sm:p-6 rounded-xl shadow-sm border border-slate-200 space-y-6">
@@ -291,7 +309,7 @@
           <input type="text" id="g-title" value="Hl. Messe" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm" />
         </div>
         <div class="grid grid-cols-2 gap-4">
-          <div><label class="block text-sm font-medium text-slate-700 mb-1">Datum</label><input type="date" id="g-date" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm" /></div>
+          <div><label class="block text-sm font-medium text-slate-700 mb-1">Datum</label><input type="date" id="g-date" onchange="onNewDateChange()" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm" /></div>
           <div><label class="block text-sm font-medium text-slate-700 mb-1">Uhrzeit</label><input type="time" id="g-time" value="10:00" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm" /></div>
         </div>
         <div class="grid grid-cols-2 gap-4">
@@ -465,7 +483,7 @@
       }
 
       function switchTab(tabId) {
-        ['dashboard', 'messdiener', 'gottesdienste', 'einteilung', 'export'].forEach(t => {
+        ['dashboard', 'messdiener', 'gottesdienste', 'einteilung', 'vorlagen', 'export'].forEach(t => {
           document.getElementById('tab-' + t).classList.add('hidden');
           document.getElementById('btn-' + t).classList.remove('bg-brand-600', 'text-white');
           document.getElementById('btn-' + t).classList.add('text-slate-300');
@@ -475,6 +493,7 @@
         document.getElementById('btn-' + tabId).classList.remove('text-slate-300');
 
         if (tabId === 'export') generateWhatsAppExport();
+        if (tabId === 'vorlagen') renderTemplateCards();
       }
 
       function renderAll() {
@@ -642,12 +661,108 @@
       }
 
       function openMessdienerModal() { document.getElementById('modal-messdiener').classList.remove('hidden'); document.getElementById('modal-messdiener').classList.add('flex'); }
-      // Vorlagen für neue Gottesdienste – Werte hier bei Bedarf anpassen
-      const GOTTESDIENST_TEMPLATES = {
-        sonntag:  { title: 'Hl. Messe (Sonntag)', time: '10:00', seniors: 1, juniors: 4, weekday: 0 },
-        freitag:  { title: 'Hl. Messe (Freitag)', time: '18:30', seniors: 1, juniors: 2, weekday: 5 },
-        hochfest: { title: 'Hochfest',            time: '10:00', seniors: 2, juniors: 6, weekday: null },
+      // ---------- Vorlagen ----------
+      const DEFAULT_TEMPLATES = {
+        sonntag:  { label: 'Sonntag',  title: 'Hl. Messe (Sonntag)', time: '10:00', seniors: 1, juniors: 4, allMinis: false, autoApply: true,  weekday: 0 },
+        freitag:  { label: 'Freitag',  title: 'Hl. Messe (Freitag)', time: '18:30', seniors: 1, juniors: 2, allMinis: false, autoApply: true,  weekday: 5 },
+        hochfest: { label: 'Hochfest', title: 'Hochfest',            time: '10:00', seniors: 2, juniors: 6, allMinis: true,  autoApply: false, weekday: null },
       };
+      const TEMPLATE_STORAGE_KEY = 'messdiener-templates-v1';
+
+      function loadTemplates() {
+        const result = JSON.parse(JSON.stringify(DEFAULT_TEMPLATES));
+        try {
+          const saved = JSON.parse(localStorage.getItem(TEMPLATE_STORAGE_KEY) || '{}');
+          Object.keys(result).forEach(k => { if (saved[k]) Object.assign(result[k], saved[k], { weekday: result[k].weekday, label: result[k].label }); });
+        } catch (e) { /* ungültige/blockierte Speicherung -> Standardwerte */ }
+        if (result.hochfest) result.hochfest.autoApply = false;
+        return result;
+      }
+      let GOTTESDIENST_TEMPLATES = loadTemplates();
+
+      // Vorlage, die für ein Datum automatisch gilt (Sonntag/Freitag), sonst null
+      function getAutoTemplateForDate(dateStr) {
+        if (!dateStr) return null;
+        const dow = new Date(`${dateStr}T12:00:00`).getDay();
+        return Object.values(GOTTESDIENST_TEMPLATES).find(t => t.autoApply && t.weekday === dow) || null;
+      }
+
+      function renderTemplateCards() {
+        const box = document.getElementById('template-cards');
+        if (!box) return;
+        const inputCls = 'w-full border border-slate-300 rounded-lg px-3 py-2 text-sm';
+        box.innerHTML = Object.entries(GOTTESDIENST_TEMPLATES).map(([key, t]) => `
+          <div class="bg-white p-4 sm:p-5 rounded-xl shadow-sm border border-slate-200 space-y-3" data-template="${key}">
+            <h3 class="text-lg font-bold text-slate-900">${t.label}</h3>
+            <div><label class="block text-sm font-medium text-slate-700 mb-1">Anlass / Titel</label>
+              <input type="text" data-field="title" value="${escHtml(t.title)}" class="${inputCls}" /></div>
+            <div><label class="block text-sm font-medium text-slate-700 mb-1">Uhrzeit</label>
+              <input type="time" data-field="time" value="${escHtml(t.time)}" class="${inputCls}" /></div>
+            <div class="grid grid-cols-2 gap-3">
+              <div><label class="block text-sm font-medium text-slate-700 mb-1">Leiter</label>
+                <input type="number" min="0" data-field="seniors" value="${t.seniors}" class="${inputCls}" /></div>
+              <div><label class="block text-sm font-medium text-slate-700 mb-1">Kinder</label>
+                <input type="number" min="0" data-field="juniors" value="${t.juniors}" class="${inputCls}" /></div>
+            </div>
+            <label class="flex items-center gap-2 text-sm text-slate-700">
+              <input type="checkbox" data-field="allMinis" ${t.allMinis ? 'checked' : ''} class="rounded text-brand-600" />
+              Alle verfügbaren Minis einsetzen
+            </label>
+            ${t.weekday === null ? '<p class="text-xs text-slate-500">Wird nur über die Auswahl „Vorlage" beim Anlegen angewendet.</p>' : `
+              <label class="flex items-center gap-2 text-sm text-slate-700">
+                <input type="checkbox" data-field="autoApply" ${t.autoApply ? 'checked' : ''} class="rounded text-brand-600" />
+                Automatisch auf alle Gottesdienste am ${t.label} anwenden
+              </label>
+              <button type="button" onclick="applyTemplateToExisting('${key}')" class="text-xs text-brand-700 hover:underline">Anzahl auf alle bestehenden Gottesdienste am ${t.label} anwenden</button>`}
+          </div>`).join('');
+      }
+
+      function saveTemplatesFromForm(showMessage) {
+        const updated = JSON.parse(JSON.stringify(GOTTESDIENST_TEMPLATES));
+        document.querySelectorAll('#template-cards [data-template]').forEach(card => {
+          const t = updated[card.dataset.template];
+          card.querySelectorAll('[data-field]').forEach(el => {
+            const f = el.dataset.field;
+            if (el.type === 'checkbox') t[f] = el.checked;
+            else if (el.type === 'number') t[f] = Math.max(0, parseInt(el.value) || 0);
+            else t[f] = el.value.trim();
+          });
+        });
+        GOTTESDIENST_TEMPLATES = updated;
+        try { localStorage.setItem(TEMPLATE_STORAGE_KEY, JSON.stringify(updated)); }
+        catch (e) { alert('Vorlagen konnten in diesem Browser nicht gespeichert werden.'); return false; }
+        if (showMessage) alert('Vorlagen gespeichert.');
+        return true;
+      }
+
+      function resetTemplates() {
+        if (!confirm('Alle Vorlagen auf die Standardwerte zurücksetzen?')) return;
+        try { localStorage.removeItem(TEMPLATE_STORAGE_KEY); } catch (e) {}
+        GOTTESDIENST_TEMPLATES = loadTemplates();
+        renderTemplateCards();
+      }
+
+      async function applyTemplateToExisting(key) {
+        if (!saveTemplatesFromForm(false)) return;
+        const t = GOTTESDIENST_TEMPLATES[key];
+        const targets = state.gottesdienste.filter(g => new Date(`${g.date}T12:00:00`).getDay() === t.weekday);
+        if (targets.length === 0) return alert(`Keine Gottesdienste am ${t.label} vorhanden.`);
+        if (!confirm(`Anzahl (${t.seniors} Leiter, ${t.juniors} Kinder) bei ${targets.length} Gottesdienst(en) am ${t.label} überschreiben? Titel und Uhrzeit bleiben unverändert.`)) return;
+        const { error } = await supabaseClient.from('gottesdienste').update({ seniors: t.seniors, juniors: t.juniors }).in('id', targets.map(g => g.id));
+        if (error) return alert('Fehlgeschlagen: ' + error.message);
+        await loadDataFromDB();
+        alert('Vorlage angewendet.');
+      }
+
+      // Beim Ändern des Datums im Anlegen-Fenster: passende Standard-Vorlage automatisch anwenden
+      function onNewDateChange() {
+        if (document.getElementById('g-template').value) return;
+        const tpl = getAutoTemplateForDate(document.getElementById('g-date').value);
+        if (!tpl) return;
+        const key = Object.keys(GOTTESDIENST_TEMPLATES).find(k => GOTTESDIENST_TEMPLATES[k] === tpl);
+        document.getElementById('g-template').value = key;
+        applyGottesdienstTemplate();
+      }
 
       function nextWeekdayDate(weekday) {
         const d = new Date();
@@ -723,10 +838,16 @@
           const seniors = available.filter(m => m.type === 'Senior').sort((a,b) => counts[a.id] - counts[b.id]);
           const juniors = available.filter(m => m.type === 'Junior').sort((a,b) => counts[a.id] - counts[b.id]);
 
-          let chosenSeniors = allMinis ? seniors : seniors.slice(0, g.seniors);
+          // Sonntags-/Freitags-Vorlage gilt standardmäßig für alle Gottesdienste an diesem Wochentag
+          const tpl = getAutoTemplateForDate(g.date);
+          const needSeniors = tpl ? tpl.seniors : g.seniors;
+          const needJuniors = tpl ? tpl.juniors : g.juniors;
+          const useAll = allMinis || (tpl && tpl.allMinis);
+
+          let chosenSeniors = useAll ? seniors : seniors.slice(0, needSeniors);
           chosenSeniors.forEach(s => counts[s.id]++);
 
-          let chosenJuniors = allMinis ? juniors : juniors.slice(0, g.juniors);
+          let chosenJuniors = useAll ? juniors : juniors.slice(0, needJuniors);
           chosenJuniors.forEach(j => counts[j.id]++);
 
           state.assignments[g.id] = { seniors: chosenSeniors, juniors: chosenJuniors };
