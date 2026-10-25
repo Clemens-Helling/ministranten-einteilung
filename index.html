@@ -206,6 +206,13 @@
               <input type="date" id="schedule-end" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-brand-500 focus:outline-none" />
             </div>
           </div>
+          <label class="flex items-start gap-3 bg-white p-4 sm:p-6 rounded-xl shadow-sm border border-slate-200 cursor-pointer">
+            <input type="checkbox" id="assign-all-minis" class="mt-1 rounded text-brand-600" />
+            <span>
+              <span class="block text-sm font-medium text-slate-900">Alle Minis einsetzen</span>
+              <span class="block text-xs text-slate-500 mt-0.5">Teilt für jeden Gottesdienst im Zeitraum alle Leiter und Kinder ein, die an dem Wochentag verfügbar sind (die eingestellte Anzahl wird ignoriert).</span>
+            </span>
+          </label>
           <div id="schedule-results" class="space-y-4"></div>
         </section>
 
@@ -271,6 +278,15 @@
       <div class="bg-white rounded-xl max-w-md w-full p-6 shadow-xl space-y-4">
         <h3 class="text-lg font-bold text-slate-900">Gottesdienst anlegen</h3>
         <div>
+          <label class="block text-sm font-medium text-slate-700 mb-1">Vorlage</label>
+          <select id="g-template" onchange="applyGottesdienstTemplate()" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm">
+            <option value="">– ohne Vorlage –</option>
+            <option value="sonntag">Sonntag</option>
+            <option value="freitag">Freitag</option>
+            <option value="hochfest">Hochfest</option>
+          </select>
+        </div>
+        <div>
           <label class="block text-sm font-medium text-slate-700 mb-1">Anlass / Titel</label>
           <input type="text" id="g-title" value="Hl. Messe" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm" />
         </div>
@@ -307,7 +323,10 @@
         </div>
 
         <div class="border-t border-slate-100 pt-4">
-          <h4 class="text-sm font-semibold text-slate-900 mb-2">Einteilung</h4>
+          <div class="flex justify-between items-center mb-2">
+            <h4 class="text-sm font-semibold text-slate-900">Einteilung</h4>
+            <button type="button" onclick="selectAllAvailableInEdit()" class="text-xs text-brand-700 hover:underline">Alle verfügbaren Minis einsetzen</button>
+          </div>
           <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <div class="flex justify-between items-baseline mb-1">
@@ -560,6 +579,15 @@
         updateEditCounters();
       }
 
+      function selectAllAvailableInEdit() {
+        const date = document.getElementById('ge-date').value;
+        const dow = date ? new Date(`${date}T12:00:00`).getDay() : null;
+        const ids = (type) => state.messdiener
+          .filter(m => m.type === type && (dow === null || (m.days || []).includes(dow)))
+          .map(m => String(m.id));
+        renderEditAssignees({ Senior: ids('Senior'), Junior: ids('Junior') });
+      }
+
       function onEditDateChange() {
         renderEditAssignees(getEditSelection());
       }
@@ -614,7 +642,34 @@
       }
 
       function openMessdienerModal() { document.getElementById('modal-messdiener').classList.remove('hidden'); document.getElementById('modal-messdiener').classList.add('flex'); }
-      function openGottesdienstModal() { document.getElementById('modal-gottesdienst').classList.remove('hidden'); document.getElementById('modal-gottesdienst').classList.add('flex'); }
+      // Vorlagen für neue Gottesdienste – Werte hier bei Bedarf anpassen
+      const GOTTESDIENST_TEMPLATES = {
+        sonntag:  { title: 'Hl. Messe (Sonntag)', time: '10:00', seniors: 1, juniors: 4, weekday: 0 },
+        freitag:  { title: 'Hl. Messe (Freitag)', time: '18:30', seniors: 1, juniors: 2, weekday: 5 },
+        hochfest: { title: 'Hochfest',            time: '10:00', seniors: 2, juniors: 6, weekday: null },
+      };
+
+      function nextWeekdayDate(weekday) {
+        const d = new Date();
+        d.setHours(12, 0, 0, 0);
+        d.setDate(d.getDate() + ((weekday - d.getDay() + 7) % 7));
+        return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+      }
+
+      function applyGottesdienstTemplate() {
+        const t = GOTTESDIENST_TEMPLATES[document.getElementById('g-template').value];
+        if (!t) return;
+        document.getElementById('g-title').value = t.title;
+        document.getElementById('g-time').value = t.time;
+        document.getElementById('g-seniors').value = t.seniors;
+        document.getElementById('g-juniors').value = t.juniors;
+        // Datum nur vorbelegen, wenn noch keines gewählt ist
+        if (t.weekday !== null && !document.getElementById('g-date').value) {
+          document.getElementById('g-date').value = nextWeekdayDate(t.weekday);
+        }
+      }
+
+      function openGottesdienstModal() { document.getElementById('g-template').value = ''; document.getElementById('modal-gottesdienst').classList.remove('hidden'); document.getElementById('modal-gottesdienst').classList.add('flex'); }
       function closeModals() { document.querySelectorAll('.fixed').forEach(m => { m.classList.add('hidden'); m.classList.remove('flex'); }); }
 
       async function saveMessdiener() {
@@ -653,6 +708,7 @@
       async function runAutoAssign() {
         let counts = {};
         state.messdiener.forEach(m => counts[m.id] = 0);
+        const allMinis = document.getElementById('assign-all-minis').checked;
 
         const targetGottesdienste = getGottesdiensteInSchedulePeriod();
         if (targetGottesdienste.length === 0) {
@@ -667,10 +723,10 @@
           const seniors = available.filter(m => m.type === 'Senior').sort((a,b) => counts[a.id] - counts[b.id]);
           const juniors = available.filter(m => m.type === 'Junior').sort((a,b) => counts[a.id] - counts[b.id]);
 
-          let chosenSeniors = seniors.slice(0, g.seniors);
+          let chosenSeniors = allMinis ? seniors : seniors.slice(0, g.seniors);
           chosenSeniors.forEach(s => counts[s.id]++);
 
-          let chosenJuniors = juniors.slice(0, g.juniors);
+          let chosenJuniors = allMinis ? juniors : juniors.slice(0, g.juniors);
           chosenJuniors.forEach(j => counts[j.id]++);
 
           state.assignments[g.id] = { seniors: chosenSeniors, juniors: chosenJuniors };
