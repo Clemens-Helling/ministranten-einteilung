@@ -265,7 +265,7 @@
     <!-- MODAL: MESSDIENER -->
     <div id="modal-messdiener" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm hidden items-center justify-center p-4 z-50">
       <div class="bg-white rounded-xl max-w-md w-full p-6 shadow-xl space-y-4">
-        <h3 class="text-lg font-bold text-slate-900">Messdiener hinzufügen</h3>
+        <h3 id="m-modal-title" class="text-lg font-bold text-slate-900">Messdiener hinzufügen</h3>
         <div>
           <label class="block text-sm font-medium text-slate-700 mb-1">Vollständiger Name</label>
           <input type="text" id="m-name" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm" />
@@ -516,11 +516,11 @@
         document.getElementById('stat-gottesdienste').innerText = state.gottesdienste.length;
 
         document.getElementById('messdiener-table-body').innerHTML = state.messdiener.map(m => `
-          <tr class="hover:bg-slate-50 transition">
+          <tr class="hover:bg-slate-50 transition cursor-pointer" onclick="openMessdienerModal('${m.id}')" title="Zum Bearbeiten klicken">
             <td class="p-4" data-label="Name">${m.name}</td>
             <td class="p-4" data-label="Rolle">${m.type === 'Senior' ? 'Leiter' : 'Kind'}</td>
             <td class="p-4" data-label="Tage">${(m.days || []).map(d => dayNames[d]).join(', ')}</td>
-            <td class="p-4 text-right"><button onclick="deleteMessdiener('${m.id}')" class="text-rose-600 text-xs">Löschen</button></td>
+            <td class="p-4 text-right"><button onclick="event.stopPropagation(); deleteMessdiener('${m.id}')" class="text-rose-600 text-xs">Löschen</button></td>
           </tr>
         `).join('');
 
@@ -692,7 +692,19 @@
         await deleteGottesdienst(id);
       }
 
-      function openMessdienerModal() { document.getElementById('modal-messdiener').classList.remove('hidden'); document.getElementById('modal-messdiener').classList.add('flex'); }
+      let editingMessdienerId = null;
+
+      // Ohne id: neuen Messdiener anlegen; mit id: bestehenden bearbeiten
+      function openMessdienerModal(id) {
+        const m = id ? state.messdiener.find(x => String(x.id) === String(id)) : null;
+        editingMessdienerId = m ? m.id : null;
+        document.getElementById('m-modal-title').textContent = m ? 'Messdiener bearbeiten' : 'Messdiener hinzufügen';
+        document.getElementById('m-name').value = m ? m.name : '';
+        document.getElementById('m-type').value = m ? m.type : 'Senior';
+        document.querySelectorAll('#m-days input').forEach(cb => { cb.checked = !!m && (m.days || []).includes(parseInt(cb.value)); });
+        document.getElementById('modal-messdiener').classList.remove('hidden');
+        document.getElementById('modal-messdiener').classList.add('flex');
+      }
       // ---------- Vorlagen ----------
       const DEFAULT_TEMPLATES = {
         sonntag:  { label: 'Sonntag',  title: 'Hl. Messe (Sonntag)', time: '10:00', seniors: 1, juniors: 4, allMinis: false, autoApply: true,  weekday: 0 },
@@ -824,9 +836,33 @@
         const type = document.getElementById('m-type').value;
         const days = Array.from(document.querySelectorAll('#m-days input:checked')).map(cb => parseInt(cb.value));
         if (!name) return alert('Bitte Namen eingeben.');
-        await supabaseClient.from('messdiener').insert([{ id: Date.now().toString(), name, type, days }]);
+
+        if (editingMessdienerId !== null) {
+          const id = editingMessdienerId;
+          const { error } = await supabaseClient.from('messdiener').update({ name, type, days }).eq('id', id);
+          if (error) return alert('Speichern fehlgeschlagen: ' + error.message);
+          await syncAssignmentsForMessdiener({ id, name, type, days });
+          editingMessdienerId = null;
+        } else {
+          const { error } = await supabaseClient.from('messdiener').insert([{ id: Date.now().toString(), name, type, days }]);
+          if (error) return alert('Speichern fehlgeschlagen: ' + error.message);
+        }
         closeModals();
         loadDataFromDB();
+      }
+
+      // Eingeteilte Personen sind in "assignments" als Kopie gespeichert -> Namen dort mit aktualisieren.
+      // Wechselt die Rolle, wird die Person aus bestehenden Einteilungen entfernt.
+      async function syncAssignmentsForMessdiener(person) {
+        const sid = String(person.id);
+        for (const [gid, a] of Object.entries(state.assignments)) {
+          const inS = (a.seniors || []).some(p => String(p.id) === sid);
+          const inJ = (a.juniors || []).some(p => String(p.id) === sid);
+          if (!inS && !inJ) continue;
+          const roleKept = (inS && person.type === 'Senior') || (inJ && person.type === 'Junior');
+          const refresh = (list) => (list || []).flatMap(p => String(p.id) !== sid ? [p] : (roleKept ? [person] : []));
+          await supabaseClient.from('assignments').upsert([{ gottesdienst_id: gid, seniors: refresh(a.seniors), juniors: refresh(a.juniors) }]);
+        }
       }
 
       async function deleteMessdiener(id) {
