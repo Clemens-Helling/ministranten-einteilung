@@ -515,6 +515,25 @@
         renderScheduleResults();
       }
 
+      // ---------- Job per RPC auslösen ----------
+      // Name der Postgres-Funktion in Supabase, die den Job sofort ausführt
+      const JOB_RPC_NAME = 'run_job';
+      const JOB_BUTTON_LABEL = '▶ Job jetzt ausführen';
+
+      async function triggerJob() {
+        if (!confirm('Job jetzt ausführen?')) return;
+        const btn = document.getElementById('job-btn');
+        if (btn) { btn.disabled = true; btn.textContent = 'Läuft …'; }
+        const { error } = await supabaseClient.rpc(JOB_RPC_NAME);
+        if (btn) { btn.disabled = false; btn.textContent = JOB_BUTTON_LABEL; }
+        if (error) {
+          alert('Job konnte nicht gestartet werden: ' + error.message);
+          return;
+        }
+        alert('Job wurde ausgelöst.');
+        loadDataFromDB();
+      }
+
       // ---------- Dashboard ----------
       function todayString() {
         const d = new Date();
@@ -594,6 +613,7 @@
             <button onclick="switchTab('gottesdienste'); openGottesdienstModal()" class="${btn} bg-brand-600 hover:bg-brand-700 text-white shadow-sm">+ Gottesdienst</button>
             <button onclick="switchTab('einteilung')" class="${btn} bg-white border border-slate-300 hover:bg-slate-50 text-slate-700">⚡ Einteilen</button>
             <button onclick="switchTab('export')" class="${btn} bg-white border border-slate-300 hover:bg-slate-50 text-slate-700">Export</button>
+            <button id="job-btn" onclick="triggerJob()" class="${btn} bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 disabled:opacity-60">${JOB_BUTTON_LABEL}</button>
           </div>
 
           <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
