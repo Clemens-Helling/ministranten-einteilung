@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="de">
   <head>
     <meta charset="UTF-8" />
@@ -26,482 +26,1316 @@
       };
     </script>
     <style>
-      input, select, textarea {
+      /* Formularfelder dürfen nie breiter als ihr Container werden */
+      input,
+      select,
+      textarea {
         max-width: 100%;
         min-width: 0;
       }
+
       @media (max-width: 767px) {
-        input, select, textarea { font-size: 16px !important; }
-        .responsive-table, .responsive-table tbody, .responsive-table tr, .responsive-table td {
-          display: block; width: 100%;
+        /* 16px verhindert das automatische Hineinzoomen auf iOS */
+        input,
+        select,
+        textarea {
+          font-size: 16px !important;
         }
-        .responsive-table thead { display: none; }
-        .responsive-table tr { padding: 0.75rem 1rem; }
+
+        /* Tabellen werden auf dem Handy zu Karten */
+        .responsive-table,
+        .responsive-table tbody,
+        .responsive-table tr,
         .responsive-table td {
-          display: flex; align-items: baseline; justify-content: space-between;
-          gap: 1rem; padding: 0.35rem 0; text-align: right;
+          display: block;
+          width: 100%;
         }
+
+        .responsive-table thead {
+          display: none;
+        }
+
+        .responsive-table tr {
+          padding: 0.75rem 1rem;
+        }
+
+        .responsive-table td {
+          display: flex;
+          align-items: baseline;
+          justify-content: space-between;
+          gap: 1rem;
+          padding: 0.35rem 0;
+          text-align: right;
+          overflow-wrap: anywhere;
+        }
+
         .responsive-table td::before {
           content: attr(data-label);
-          flex-shrink: 0; font-size: 0.7rem; font-weight: 600;
-          text-transform: uppercase; color: #64748b;
+          flex-shrink: 0;
+          font-size: 0.7rem;
+          font-weight: 600;
+          letter-spacing: 0.05em;
+          text-align: left;
+          text-transform: uppercase;
+          color: #64748b;
+        }
+
+        .responsive-table td.td-action {
+          justify-content: flex-end;
+          padding-top: 0.6rem;
+        }
+
+        .responsive-table td.td-action::before {
+          content: none;
         }
       }
+
       @media print {
-        @page { size: A4 landscape; margin: 12mm; }
-        body > *:not(#pdf-print-area) { display: none !important; }
-        #pdf-print-area { display: block !important; font: 12px Arial, sans-serif; }
-        #pdf-print-area table { border-collapse: collapse; width: 100%; }
-        #pdf-print-area th, #pdf-print-area td { border: 1px solid #cbd5e1; padding: 8px; text-align: left; }
-        #pdf-print-area th { background: #f1f5f9 !important; print-color-adjust: exact; }
+        @page {
+          size: A4 landscape;
+          margin: 12mm;
+        }
+
+        body > *:not(#pdf-print-area) {
+          display: none !important;
+        }
+
+        #pdf-print-area {
+          display: block !important;
+          color: #172033;
+          font: 12px Arial, sans-serif;
+        }
+
+        #pdf-print-area h1 {
+          font-size: 20px;
+          margin: 0 0 6px;
+        }
+
+        #pdf-print-area .period {
+          color: #475569;
+          margin: 0 0 20px;
+        }
+
+        #pdf-print-area table {
+          border-collapse: collapse;
+          width: 100%;
+        }
+
+        #pdf-print-area th,
+        #pdf-print-area td {
+          border: 1px solid #cbd5e1;
+          padding: 8px;
+          text-align: left;
+          vertical-align: top;
+        }
+
+        #pdf-print-area th {
+          background: #f1f5f9 !important;
+          print-color-adjust: exact;
+        }
+
+        #pdf-print-area tr {
+          break-inside: avoid;
+        }
       }
     </style>
   </head>
   <body class="bg-slate-50 text-slate-800 min-h-screen flex flex-col">
-
-    <!-- DB Status Banner -->
-    <div id="db-status-bar" class="bg-amber-500 text-white text-xs px-4 py-1 text-center font-medium hidden">
-      ⚠️ Datenbank nicht verbunden. Bitte Supabase-Zugangsdaten im Code prüfen.
+    <!-- Supabase Konfiguration Modal / Banner falls nicht konfiguriert -->
+    <div
+      id="db-status-bar"
+      class="bg-amber-500 text-white text-xs px-4 py-1 text-center font-medium hidden"
+    >
+      ⚠️ Datenbank nicht verbunden. Bitte Supabase-Zugangsdaten im Code
+      eintragen.
     </div>
 
-    <!-- EINZIGER LOGIN-BILDSCHIRM -->
-    <section id="login-screen" class="flex flex-1 items-center justify-center px-4 py-12">
-      <form id="login-form" onsubmit="signIn(event)" class="bg-white w-full max-w-md rounded-xl shadow-sm border border-slate-200 p-6 sm:p-8 space-y-5">
+    <section
+      id="login-screen"
+      class="flex flex-1 items-center justify-center px-4 py-12"
+    >
+      <form
+        id="login-form"
+        onsubmit="signIn(event)"
+        class="bg-white w-full max-w-md rounded-xl shadow-sm border border-slate-200 p-6 sm:p-8 space-y-5"
+      >
         <div>
           <div class="text-3xl mb-3">⛪</div>
           <h1 class="text-2xl font-bold text-slate-900">Leiter-Anmeldung</h1>
-          <p class="text-sm text-slate-600 mt-2">Melde dich mit deinem Leiter-Konto an.</p>
+          <p class="text-sm text-slate-600 mt-2">
+            Melde dich mit deinem bestehenden Leiter-Konto an.
+          </p>
         </div>
         <div id="login-error" role="alert" class="hidden text-sm text-rose-700 bg-rose-50 border border-rose-200 rounded-lg p-3"></div>
         <div>
-          <label for="login-email" class="block text-sm font-medium text-slate-700 mb-1">E-Mail-Adresse</label>
-          <input type="email" id="login-email" autocomplete="username" required class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-brand-500 focus:outline-none" />
+          <label
+            for="login-email"
+            class="block text-sm font-medium text-slate-700 mb-1"
+            >E-Mail-Adresse</label
+          >
+          <input
+            type="email"
+            id="login-email"
+            autocomplete="username"
+            required
+            class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-brand-500 focus:outline-none"
+          />
         </div>
         <div>
-          <label for="login-password" class="block text-sm font-medium text-slate-700 mb-1">Passwort</label>
-          <input type="password" id="login-password" autocomplete="current-password" required class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-brand-500 focus:outline-none" />
+          <label
+            for="login-password"
+            class="block text-sm font-medium text-slate-700 mb-1"
+            >Passwort</label
+          >
+          <input
+            type="password"
+            id="login-password"
+            autocomplete="current-password"
+            required
+            class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-brand-500 focus:outline-none"
+          />
         </div>
-        <button id="login-submit" type="submit" class="w-full bg-brand-600 hover:bg-brand-700 disabled:opacity-60 text-white px-4 py-2.5 rounded-lg text-sm font-medium transition">
+        <button
+          id="login-submit"
+          type="submit"
+          class="w-full bg-brand-600 hover:bg-brand-700 disabled:opacity-60 text-white px-4 py-2.5 rounded-lg text-sm font-medium transition"
+        >
           Anmelden
         </button>
+        <p class="text-xs text-slate-500">
+          Neue Konten werden von der Projektverwaltung angelegt.
+        </p>
       </form>
     </section>
 
-    <!-- HAUPT-APP (Erst nach Login sichtbar) -->
     <div id="app-content" class="hidden flex-col flex-1">
       <!-- Header -->
       <header class="bg-slate-900 text-white shadow-md">
-        <div class="max-w-7xl mx-auto px-4 py-3 md:py-4 flex flex-wrap xl:flex-nowrap justify-between items-center gap-3">
-          <div class="flex items-center space-x-3 order-1 min-w-0">
-            <span class="text-2xl sm:text-3xl">⛪</span>
-            <div>
-              <h1 class="text-lg sm:text-xl font-bold tracking-tight">Messdiener-Manager</h1>
-              <p class="hidden sm:block text-xs text-slate-400">Cloud-Datenbank (Supabase) synchronisiert</p>
-            </div>
-          </div>
-          <!-- Navigation Tabs -->
-          <nav class="order-3 xl:order-2 w-full xl:w-auto flex flex-wrap gap-1.5 xl:gap-2 bg-slate-800 p-1.5 rounded-lg border border-slate-700">
-            <button onclick="switchTab('dashboard')" id="btn-dashboard" class="flex-1 xl:flex-none px-3 xl:px-4 py-2 text-sm font-medium rounded-md transition bg-brand-600 text-white">Übersicht</button>
-            <button onclick="switchTab('messdiener')" id="btn-messdiener" class="flex-1 xl:flex-none px-3 xl:px-4 py-2 text-sm font-medium rounded-md transition text-slate-300 hover:text-white">Messdiener</button>
-            <button onclick="switchTab('gottesdienste')" id="btn-gottesdienste" class="flex-1 xl:flex-none px-3 xl:px-4 py-2 text-sm font-medium rounded-md transition text-slate-300 hover:text-white">Gottesdienste</button>
-            <button onclick="switchTab('einteilung')" id="btn-einteilung" class="flex-1 xl:flex-none px-3 xl:px-4 py-2 text-sm font-medium rounded-md transition text-slate-300 hover:text-white">Autom. Einteilung</button>
-            <button onclick="switchTab('export')" id="btn-export" class="flex-1 xl:flex-none px-3 xl:px-4 py-2 text-sm font-medium rounded-md transition text-slate-300 hover:text-white">Export</button>
-          </nav>
-          <div class="flex items-center gap-2 sm:gap-3 order-2 xl:order-3 min-w-0">
-            <span id="signed-in-email" class="hidden sm:inline-block truncate max-w-[14rem] text-xs text-slate-300"></span>
-            <button onclick="signOut()" class="px-3 py-2 text-sm font-medium rounded-md border border-slate-600 hover:bg-slate-800 transition">Abmelden</button>
+      <div
+        class="max-w-7xl mx-auto px-4 py-3 md:py-4 flex flex-wrap xl:flex-nowrap justify-between items-center gap-3 xl:gap-4"
+      >
+        <div class="flex items-center space-x-3 order-1 min-w-0">
+          <span class="text-2xl sm:text-3xl">⛪</span>
+          <div>
+            <h1 class="text-lg sm:text-xl font-bold tracking-tight">Messdiener-Manager</h1>
+            <p class="hidden sm:block text-xs text-slate-400">
+              Cloud-Datenbank (Supabase) synchronisiert
+            </p>
           </div>
         </div>
+        <!-- Navigation Tabs -->
+        <nav
+          class="order-3 xl:order-2 w-full xl:w-auto flex flex-wrap gap-1.5 xl:gap-2 bg-slate-800 p-1.5 rounded-lg border border-slate-700"
+        >
+          <button
+            onclick="switchTab('dashboard')"
+            id="btn-dashboard"
+            class="flex-1 xl:flex-none whitespace-nowrap px-3 xl:px-4 py-2 text-sm font-medium rounded-md transition bg-brand-600 text-white"
+          >
+            Übersicht
+          </button>
+          <button
+            onclick="switchTab('messdiener')"
+            id="btn-messdiener"
+            class="flex-1 xl:flex-none whitespace-nowrap px-3 xl:px-4 py-2 text-sm font-medium rounded-md transition text-slate-300 hover:text-white"
+          >
+            Messdiener
+          </button>
+          <button
+            onclick="switchTab('gottesdienste')"
+            id="btn-gottesdienste"
+            class="flex-1 xl:flex-none whitespace-nowrap px-3 xl:px-4 py-2 text-sm font-medium rounded-md transition text-slate-300 hover:text-white"
+          >
+            Gottesdienste
+          </button>
+          <button
+            onclick="switchTab('einteilung')"
+            id="btn-einteilung"
+            class="flex-1 xl:flex-none whitespace-nowrap px-3 xl:px-4 py-2 text-sm font-medium rounded-md transition text-slate-300 hover:text-white"
+          >
+            Autom. Einteilung
+          </button>
+          <button
+            onclick="switchTab('export')"
+            id="btn-export"
+            class="flex-1 xl:flex-none whitespace-nowrap px-3 xl:px-4 py-2 text-sm font-medium rounded-md transition text-slate-300 hover:text-white"
+          >
+            Export
+          </button>
+        </nav>
+        <div class="flex items-center gap-2 sm:gap-3 order-2 xl:order-3 min-w-0">
+          <span id="signed-in-email" class="hidden sm:inline-block truncate max-w-[14rem] text-xs text-slate-300"></span>
+          <button
+            onclick="signOut()"
+            class="px-3 py-2 text-sm font-medium rounded-md border border-slate-600 hover:bg-slate-800 transition"
+          >
+            Abmelden
+          </button>
+        </div>
+      </div>
       </header>
 
-      <!-- Main Container -->
-      <main class="max-w-7xl mx-auto px-4 py-6 md:py-8 flex-grow w-full">
-        <!-- TAB: DASHBOARD -->
-        <section id="tab-dashboard" class="space-y-6">
-          <div class="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6">
-            <div class="bg-white p-4 sm:p-6 rounded-xl shadow-sm border border-slate-200 flex items-center justify-between">
-              <div>
-                <p class="text-sm font-medium text-slate-500">Aktive Messdiener</p>
-                <h3 id="stat-messdiener" class="text-3xl font-bold text-slate-900 mt-1">0</h3>
-              </div>
-              <div class="p-3 bg-brand-50 text-brand-600 rounded-lg text-2xl">👦</div>
-            </div>
-            <div class="bg-white p-4 sm:p-6 rounded-xl shadow-sm border border-slate-200 flex items-center justify-between">
-              <div>
-                <p class="text-sm font-medium text-slate-500">Geplante Gottesdienste</p>
-                <h3 id="stat-gottesdienste" class="text-3xl font-bold text-slate-900 mt-1">0</h3>
-              </div>
-              <div class="p-3 bg-blue-50 text-blue-600 rounded-lg text-2xl">📅</div>
-            </div>
-            <div class="bg-white p-4 sm:p-6 rounded-xl shadow-sm border border-slate-200 flex items-center justify-between">
-              <div>
-                <p class="text-sm font-medium text-slate-500">Status DB</p>
-                <h3 id="stat-db" class="text-lg font-bold text-emerald-600 mt-1">Verbunden</h3>
-              </div>
-              <div class="p-3 bg-amber-50 text-amber-600 rounded-lg text-2xl">🛢️</div>
-            </div>
-          </div>
-        </section>
-
-        <!-- TAB: MESSDIENER -->
-        <section id="tab-messdiener" class="hidden space-y-6">
-          <div class="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3">
-            <h2 class="text-xl font-bold text-slate-900">Messdiener-Verwaltung</h2>
-            <button onclick="openMessdienerModal()" class="bg-brand-600 hover:bg-brand-700 text-white px-4 py-2.5 rounded-lg text-sm font-medium transition shadow-sm">+ Messdiener hinzufügen</button>
-          </div>
-          <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-x-auto">
-            <table class="responsive-table w-full text-left border-collapse">
-              <thead class="bg-slate-50 text-slate-500 text-xs uppercase tracking-wider border-b border-slate-200">
-                <tr>
-                  <th class="p-4">Name</th>
-                  <th class="p-4">Rolle</th>
-                  <th class="p-4">Verfügbare Tage</th>
-                  <th class="p-4 text-right">Aktion</th>
-                </tr>
-              </thead>
-              <tbody id="messdiener-table-body" class="divide-y divide-slate-100 text-sm"></tbody>
-            </table>
-          </div>
-        </section>
-
-        <!-- TAB: GOTTESDIENSTE -->
-        <section id="tab-gottesdienste" class="hidden space-y-6">
-          <div class="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3">
-            <h2 class="text-xl font-bold text-slate-900">Gottesdienst-Planung</h2>
-            <button onclick="openGottesdienstModal()" class="bg-brand-600 hover:bg-brand-700 text-white px-4 py-2.5 rounded-lg text-sm font-medium transition shadow-sm">+ Gottesdienst hinzufügen</button>
-          </div>
-          <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-x-auto">
-            <table class="responsive-table w-full text-left border-collapse">
-              <thead class="bg-slate-50 text-slate-500 text-xs uppercase tracking-wider border-b border-slate-200">
-                <tr>
-                  <th class="p-4">Datum & Uhrzeit</th>
-                  <th class="p-4">Anlass / Titel</th>
-                  <th class="p-4">Benötigte Dienste</th>
-                  <th class="p-4 text-right">Aktion</th>
-                </tr>
-              </thead>
-              <tbody id="gottesdienst-table-body" class="divide-y divide-slate-100 text-sm"></tbody>
-            </table>
-          </div>
-        </section>
-
-        <!-- TAB: EINTEILUNG -->
-        <section id="tab-einteilung" class="hidden space-y-6">
-          <div class="flex flex-col md:flex-row md:justify-between md:items-center gap-4 bg-white p-4 sm:p-6 rounded-xl shadow-sm border border-slate-200">
+    <!-- Main Container -->
+    <main class="max-w-7xl mx-auto px-4 py-6 md:py-8 flex-grow w-full">
+      <!-- TAB: DASHBOARD -->
+      <section id="tab-dashboard" class="space-y-6">
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6">
+          <div
+            class="bg-white p-4 sm:p-6 rounded-xl shadow-sm border border-slate-200 flex items-center justify-between"
+          >
             <div>
-              <h2 class="text-xl font-bold text-slate-900">Automatischer Dienstplan</h2>
-              <p class="text-sm text-slate-500 mt-1">Generiert Zuteilungen und speichert sie direkt in der DB.</p>
+              <p class="text-sm font-medium text-slate-500">
+                Aktive Messdiener
+              </p>
+              <h3
+                id="stat-messdiener"
+                class="text-3xl font-bold text-slate-900 mt-1"
+              >
+                0
+              </h3>
             </div>
-            <button onclick="runAutoAssign()" class="bg-brand-600 hover:bg-brand-700 text-white px-6 py-3 rounded-lg text-sm font-semibold transition shadow-md">
-              ⚡ Jetzt automatisch einteilen & speichern
+            <div class="p-3 bg-brand-50 text-brand-600 rounded-lg text-2xl">
+              👦
+            </div>
+          </div>
+          <div
+            class="bg-white p-4 sm:p-6 rounded-xl shadow-sm border border-slate-200 flex items-center justify-between"
+          >
+            <div>
+              <p class="text-sm font-medium text-slate-500">
+                Geplante Gottesdienste
+              </p>
+              <h3
+                id="stat-gottesdienste"
+                class="text-3xl font-bold text-slate-900 mt-1"
+              >
+                0
+              </h3>
+            </div>
+            <div class="p-3 bg-blue-50 text-blue-600 rounded-lg text-2xl">
+              📅
+            </div>
+          </div>
+          <div
+            class="bg-white p-4 sm:p-6 rounded-xl shadow-sm border border-slate-200 flex items-center justify-between"
+          >
+            <div>
+              <p class="text-sm font-medium text-slate-500">Status DB</p>
+              <h3 id="stat-db" class="text-lg font-bold text-emerald-600 mt-1">
+                Verbunden
+              </h3>
+            </div>
+            <div class="p-3 bg-amber-50 text-amber-600 rounded-lg text-2xl">
+              🛢️
+            </div>
+          </div>
+        </div>
+
+        <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-4 sm:p-6">
+          <h3 class="text-lg font-bold text-slate-900 mb-2">
+            Live-Synchronisation
+          </h3>
+          <p class="text-sm text-slate-600">
+            Alle Daten werden direkt in der PostgreSQL-Datenbank von Supabase
+            gespeichert. Wenn ein Leitungsmitglied einen Messdiener hinzufügt
+            oder neu einteilt, wird die Ansicht bei allen anderen Benutzern
+            automatisch aktualisiert.
+          </p>
+        </div>
+      </section>
+
+      <!-- TAB: MESSDIENER -->
+      <section id="tab-messdiener" class="hidden space-y-6">
+        <div class="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3">
+          <h2 class="text-xl font-bold text-slate-900">
+            Messdiener-Verwaltung
+          </h2>
+          <button
+            onclick="openMessdienerModal()"
+            class="w-full sm:w-auto bg-brand-600 hover:bg-brand-700 text-white px-4 py-2.5 sm:py-2 rounded-lg text-sm font-medium transition shadow-sm"
+          >
+            + Messdiener hinzufügen
+          </button>
+        </div>
+
+        <div
+          class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-x-auto"
+        >
+          <table class="responsive-table w-full text-left border-collapse">
+            <thead
+              class="bg-slate-50 text-slate-500 text-xs uppercase tracking-wider border-b border-slate-200"
+            >
+              <tr>
+                <th class="p-4">Name</th>
+                <th class="p-4">Rolle</th>
+                <th class="p-4">Verfügbare Wochentage</th>
+                <th class="p-4 text-right">Aktion</th>
+              </tr>
+            </thead>
+            <tbody
+              id="messdiener-table-body"
+              class="divide-y divide-slate-100 text-sm"
+            >
+              <!-- Per JS aus Supabase befüllt -->
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- TAB: GOTTESDIENSTE -->
+      <section id="tab-gottesdienste" class="hidden space-y-6">
+        <div class="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3">
+          <h2 class="text-xl font-bold text-slate-900">Gottesdienst-Planung</h2>
+          <button
+            onclick="openGottesdienstModal()"
+            class="w-full sm:w-auto bg-brand-600 hover:bg-brand-700 text-white px-4 py-2.5 sm:py-2 rounded-lg text-sm font-medium transition shadow-sm"
+          >
+            + Gottesdienst hinzufügen
+          </button>
+        </div>
+
+        <div
+          class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-x-auto"
+        >
+          <table class="responsive-table w-full text-left border-collapse">
+            <thead
+              class="bg-slate-50 text-slate-500 text-xs uppercase tracking-wider border-b border-slate-200"
+            >
+              <tr>
+                <th class="p-4">Datum & Uhrzeit</th>
+                <th class="p-4">Anlass / Titel</th>
+                <th class="p-4">Benötigte Dienste</th>
+                <th class="p-4 text-right">Aktion</th>
+              </tr>
+            </thead>
+            <tbody
+              id="gottesdienst-table-body"
+              class="divide-y divide-slate-100 text-sm"
+            >
+              <!-- Per JS aus Supabase befüllt -->
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- TAB: AUTOM. EINTEILUNG -->
+      <section id="tab-einteilung" class="hidden space-y-6">
+        <div
+          class="flex flex-col md:flex-row md:justify-between md:items-center gap-4 bg-white p-4 sm:p-6 rounded-xl shadow-sm border border-slate-200"
+        >
+          <div>
+            <h2 class="text-xl font-bold text-slate-900">
+              Automatischer Dienstplan
+            </h2>
+            <p class="text-sm text-slate-500 mt-1">
+              Generiert automatisch Zuteilungen basierend auf der DB und sichert
+              das Ergebnis direkt online.
+            </p>
+          </div>
+          <button
+            onclick="runAutoAssign()"
+            class="w-full md:w-auto justify-center bg-brand-600 hover:bg-brand-700 text-white px-6 py-3 rounded-lg text-sm font-semibold transition shadow-md flex items-center gap-2"
+          >
+            ⚡ Jetzt automatisch einteilen & speichern
+          </button>
+        </div>
+
+        <div
+          class="grid grid-cols-1 sm:grid-cols-2 gap-4 bg-white p-4 sm:p-6 rounded-xl shadow-sm border border-slate-200"
+        >
+          <div>
+            <label
+              for="schedule-start"
+              class="block text-sm font-medium text-slate-700 mb-1"
+              >Einteilung ab</label
+            >
+            <input
+              type="date"
+              id="schedule-start"
+              class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-brand-500 focus:outline-none"
+            />
+          </div>
+          <div>
+            <label
+              for="schedule-end"
+              class="block text-sm font-medium text-slate-700 mb-1"
+              >Einteilung bis</label
+            >
+            <input
+              type="date"
+              id="schedule-end"
+              class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-brand-500 focus:outline-none"
+            />
+          </div>
+        </div>
+
+        <div id="schedule-results" class="space-y-4">
+          <!-- Generierter Plan -->
+        </div>
+      </section>
+
+      <!-- TAB: EXPORT -->
+      <section id="tab-export" class="hidden space-y-6">
+        <div
+          class="bg-white p-4 sm:p-6 rounded-xl shadow-sm border border-slate-200 space-y-6"
+        >
+          <div>
+            <h2 class="text-xl font-bold text-slate-900">
+              Dienstplan exportieren
+            </h2>
+            <p class="text-sm text-slate-500 mt-1">
+              Kopiere den fertigen Text direkt für WhatsApp.
+            </p>
+          </div>
+
+          <button
+            onclick="generateWhatsAppExport()"
+            class="w-full sm:w-auto justify-center bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2.5 rounded-lg text-sm font-medium transition flex items-center gap-2"
+          >
+            📱 WhatsApp Text generieren
+          </button>
+
+          <div class="border-t border-slate-100 pt-5">
+            <button
+              onclick="exportSchedulePdf()"
+              class="w-full sm:w-auto justify-center bg-rose-600 hover:bg-rose-700 text-white px-4 py-2.5 rounded-lg text-sm font-medium transition flex items-center gap-2"
+            >
+              PDF-Einteilung drucken / speichern
             </button>
+            <p class="text-xs text-slate-500 mt-2">
+              Im Druckdialog „Als PDF speichern“ wählen. Der eingestellte
+              Einteilungszeitraum wird verwendet.
+            </p>
           </div>
-          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 bg-white p-4 sm:p-6 rounded-xl shadow-sm border border-slate-200">
-            <div>
-              <label for="schedule-start" class="block text-sm font-medium text-slate-700 mb-1">Einteilung ab</label>
-              <input type="date" id="schedule-start" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-brand-500 focus:outline-none" />
-            </div>
-            <div>
-              <label for="schedule-end" class="block text-sm font-medium text-slate-700 mb-1">Einteilung bis</label>
-              <input type="date" id="schedule-end" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-brand-500 focus:outline-none" />
-            </div>
-          </div>
-          <div id="schedule-results" class="space-y-4"></div>
-        </section>
 
-        <!-- TAB: EXPORT -->
-        <section id="tab-export" class="hidden space-y-6">
-          <div class="bg-white p-4 sm:p-6 rounded-xl shadow-sm border border-slate-200 space-y-6">
-            <div>
-              <h2 class="text-xl font-bold text-slate-900">Dienstplan exportieren</h2>
-            </div>
-            <div class="flex flex-wrap gap-3">
-              <button onclick="generateWhatsAppExport()" class="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2.5 rounded-lg text-sm font-medium transition">
-                📱 WhatsApp Text generieren
-              </button>
-              <button onclick="exportSchedulePdf()" class="bg-rose-600 hover:bg-rose-700 text-white px-4 py-2.5 rounded-lg text-sm font-medium transition">
-                🖨️ PDF / Drucken
-              </button>
-            </div>
-            <div>
-              <label class="block text-sm font-medium text-slate-700 mb-2">WhatsApp Vorschau:</label>
-              <textarea id="whatsapp-output" rows="10" class="w-full p-3 font-mono text-xs bg-slate-50 border border-slate-200 rounded-lg" readonly></textarea>
-            </div>
+          <div>
+            <label class="block text-sm font-medium text-slate-700 mb-2"
+              >WhatsApp Vorschau:</label
+            >
+            <textarea
+              id="whatsapp-output"
+              rows="10"
+              class="w-full p-3 sm:p-4 font-mono text-xs bg-slate-50 border border-slate-200 rounded-lg focus:outline-none"
+              readonly
+            ></textarea>
           </div>
-        </section>
-      </main>
-    </div>
+        </div>
+      </section>
+    </main>
 
     <!-- MODAL: MESSDIENER -->
-    <div id="modal-messdiener" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm hidden items-center justify-center p-4 z-50">
-      <div class="bg-white rounded-xl max-w-md w-full p-6 shadow-xl space-y-4">
+    <div
+      id="modal-messdiener"
+      class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm hidden items-center justify-center p-4 z-50"
+    >
+      <div class="bg-white rounded-xl max-w-md w-full max-h-[90vh] overflow-y-auto p-5 sm:p-6 shadow-xl space-y-4">
         <h3 class="text-lg font-bold text-slate-900">Messdiener hinzufügen</h3>
         <div>
-          <label class="block text-sm font-medium text-slate-700 mb-1">Vollständiger Name</label>
-          <input type="text" id="m-name" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm" />
+          <label class="block text-sm font-medium text-slate-700 mb-1"
+            >Vollständiger Name</label
+          >
+          <input
+            type="text"
+            id="m-name"
+            class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-brand-500 focus:outline-none"
+          />
         </div>
         <div>
-          <label class="block text-sm font-medium text-slate-700 mb-1">Rolle</label>
-          <select id="m-type" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm">
+          <label class="block text-sm font-medium text-slate-700 mb-1"
+            >Rolle</label
+          >
+          <select
+            id="m-type"
+            class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-brand-500 focus:outline-none"
+          >
             <option value="Senior">Leiter</option>
-            <option value="Junior">Kind</option>
+            <option value="Junior">Kinder</option>
           </select>
         </div>
         <div>
-          <label class="block text-sm font-medium text-slate-700 mb-2">Verfügbare Wochentage</label>
+          <label class="block text-sm font-medium text-slate-700 mb-2"
+            >Verfügbare Wochentage</label
+          >
           <div id="m-days" class="grid grid-cols-2 gap-2 text-sm">
-            <label class="flex items-center gap-2"><input type="checkbox" value="1" class="rounded text-brand-600" /> Montag</label>
-            <label class="flex items-center gap-2"><input type="checkbox" value="2" class="rounded text-brand-600" /> Dienstag</label>
-            <label class="flex items-center gap-2"><input type="checkbox" value="3" class="rounded text-brand-600" /> Mittwoch</label>
-            <label class="flex items-center gap-2"><input type="checkbox" value="4" class="rounded text-brand-600" /> Donnerstag</label>
-            <label class="flex items-center gap-2"><input type="checkbox" value="5" class="rounded text-brand-600" /> Freitag</label>
-            <label class="flex items-center gap-2"><input type="checkbox" value="6" class="rounded text-brand-600" /> Samstag</label>
-            <label class="flex items-center gap-2"><input type="checkbox" value="0" class="rounded text-brand-600" /> Sonntag</label>
+            <label class="flex items-center gap-2 py-1"
+              ><input
+                type="checkbox"
+                value="1"
+                class="rounded text-brand-600"
+              />
+              Montag</label
+            >
+            <label class="flex items-center gap-2 py-1"
+              ><input
+                type="checkbox"
+                value="2"
+                class="rounded text-brand-600"
+              />
+              Dienstag</label
+            >
+            <label class="flex items-center gap-2 py-1"
+              ><input
+                type="checkbox"
+                value="3"
+                class="rounded text-brand-600"
+              />
+              Mittwoch</label
+            >
+            <label class="flex items-center gap-2 py-1"
+              ><input
+                type="checkbox"
+                value="4"
+                class="rounded text-brand-600"
+              />
+              Donnerstag</label
+            >
+            <label class="flex items-center gap-2 py-1"
+              ><input
+                type="checkbox"
+                value="5"
+                class="rounded text-brand-600"
+              />
+              Freitag</label
+            >
+            <label class="flex items-center gap-2 py-1"
+              ><input
+                type="checkbox"
+                value="6"
+                class="rounded text-brand-600"
+              />
+              Samstag</label
+            >
+            <label class="flex items-center gap-2 py-1"
+              ><input
+                type="checkbox"
+                value="0"
+                class="rounded text-brand-600"
+              />
+              Sonntag</label
+            >
           </div>
         </div>
-        <div class="flex justify-end gap-3 pt-4 border-t border-slate-100">
-          <button onclick="closeModals()" class="px-4 py-2 text-sm text-slate-600">Abbrechen</button>
-          <button onclick="saveMessdiener()" class="px-4 py-2 text-sm text-white bg-brand-600 rounded-lg">Speichern</button>
+        <div class="flex flex-col-reverse sm:flex-row sm:justify-end gap-2 sm:gap-3 pt-4 border-t border-slate-100">
+          <button
+            onclick="closeModals()"
+            class="w-full sm:w-auto px-4 py-2.5 sm:py-2 text-sm font-medium text-slate-600 border border-slate-200 sm:border-0 hover:bg-slate-100 rounded-lg"
+          >
+            Abbrechen
+          </button>
+          <button
+            onclick="saveMessdiener()"
+            class="w-full sm:w-auto px-4 py-2.5 sm:py-2 text-sm font-medium text-white bg-brand-600 hover:bg-brand-700 rounded-lg"
+          >
+            Speichern
+          </button>
         </div>
       </div>
     </div>
 
     <!-- MODAL: GOTTESDIENST -->
-    <div id="modal-gottesdienst" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm hidden items-center justify-center p-4 z-50">
-      <div class="bg-white rounded-xl max-w-md w-full p-6 shadow-xl space-y-4">
+    <div
+      id="modal-gottesdienst"
+      class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm hidden items-center justify-center p-4 z-50"
+    >
+      <div class="bg-white rounded-xl max-w-md w-full max-h-[90vh] overflow-y-auto p-5 sm:p-6 shadow-xl space-y-4">
         <h3 class="text-lg font-bold text-slate-900">Gottesdienst anlegen</h3>
         <div>
-          <label class="block text-sm font-medium text-slate-700 mb-1">Anlass / Titel</label>
-          <input type="text" id="g-title" value="Hl. Messe" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm" />
+          <label class="block text-sm font-medium text-slate-700 mb-1"
+            >Anlass / Titel</label
+          >
+          <input
+            type="text"
+            id="g-title"
+            value="Hl. Messe"
+            class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-brand-500 focus:outline-none"
+          />
+        </div>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div>
+            <label class="block text-sm font-medium text-slate-700 mb-1"
+              >Datum</label
+            >
+            <input
+              type="date"
+              id="g-date"
+              class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-brand-500 focus:outline-none"
+            />
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-slate-700 mb-1"
+              >Uhrzeit</label
+            >
+            <input
+              type="time"
+              id="g-time"
+              value="10:00"
+              class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-brand-500 focus:outline-none"
+            />
+          </div>
         </div>
         <div class="grid grid-cols-2 gap-4">
-          <div><label class="block text-sm font-medium text-slate-700 mb-1">Datum</label><input type="date" id="g-date" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm" /></div>
-          <div><label class="block text-sm font-medium text-slate-700 mb-1">Uhrzeit</label><input type="time" id="g-time" value="10:00" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm" /></div>
+          <div>
+            <label class="block text-sm font-medium text-slate-700 mb-1"
+              >Anzahl Leiter</label
+            >
+            <input
+              type="number"
+              id="g-seniors"
+              value="1"
+              min="0"
+              max="5"
+              class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-brand-500 focus:outline-none"
+            />
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-slate-700 mb-1"
+              >Anzahl Kinder</label
+            >
+            <input
+              type="number"
+              id="g-juniors"
+              value="2"
+              min="0"
+              max="5"
+              class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-brand-500 focus:outline-none"
+            />
+          </div>
         </div>
-        <div class="grid grid-cols-2 gap-4">
-          <div><label class="block text-sm font-medium text-slate-700 mb-1">Leiter</label><input type="number" id="g-seniors" value="1" min="0" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm" /></div>
-          <div><label class="block text-sm font-medium text-slate-700 mb-1">Kinder</label><input type="number" id="g-juniors" value="2" min="0" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm" /></div>
+        <div class="rounded-lg border border-slate-200 p-3">
+          <label
+            class="flex items-center gap-2 text-sm font-medium text-slate-700"
+          >
+            <input
+              type="checkbox"
+              id="g-repeat-weekly"
+              class="rounded text-brand-600"
+            />
+            Wöchentlich wiederholen
+          </label>
+          <div id="g-repeat-end-container" class="hidden mt-3">
+            <label
+              for="g-repeat-end"
+              class="block text-sm font-medium text-slate-700 mb-1"
+              >Wiederholen bis einschließlich</label
+            >
+            <input
+              type="date"
+              id="g-repeat-end"
+              disabled
+              class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-brand-500 focus:outline-none"
+            />
+          </div>
         </div>
-        <div class="flex justify-end gap-3 pt-4 border-t border-slate-100">
-          <button onclick="closeModals()" class="px-4 py-2 text-sm text-slate-600">Abbrechen</button>
-          <button onclick="saveGottesdienst()" class="px-4 py-2 text-sm text-white bg-brand-600 rounded-lg">Speichern</button>
+        <div class="flex flex-col-reverse sm:flex-row sm:justify-end gap-2 sm:gap-3 pt-4 border-t border-slate-100">
+          <button
+            onclick="closeModals()"
+            class="w-full sm:w-auto px-4 py-2.5 sm:py-2 text-sm font-medium text-slate-600 border border-slate-200 sm:border-0 hover:bg-slate-100 rounded-lg"
+          >
+            Abbrechen
+          </button>
+          <button
+            onclick="saveGottesdienst()"
+            class="w-full sm:w-auto px-4 py-2.5 sm:py-2 text-sm font-medium text-white bg-brand-600 hover:bg-brand-700 rounded-lg"
+          >
+            Speichern
+          </button>
         </div>
       </div>
+    </div>
     </div>
 
     <div id="pdf-print-area" class="hidden"></div>
 
-    <!-- JAVASCRIPT -->
+    <!-- JavaScript + Supabase Integration -->
     <script>
+      // -------------------------------------------------------------
+      // SUPABASE KONFIGURATION (Hier deine Daten eintragen!)
+      // -------------------------------------------------------------
       const SUPABASE_URL = "https://wkeccnqquqwszbjhdfqo.supabase.co";
-      const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndrZWNjbnFxdXF3c3piamhkZnFvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTI3NjYwNzcsImV4cCI6MjEwODM0MjA3N30.FhbXCHfHV0H0vBp5GVF9J..."; // Ersetze hier mit deinem vollständigen Key falls gekürzt
+      const SUPABASE_ANON_KEY =
+        "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndrZWNjbnFxdXF3c3piamhkZnFvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTI3NjYwNzcsImV4cCI6MjEwODM0MjA3N30.FhbXCHfHV0H0vBp5GVF9J-vADXJ65eJ61-OMjQ2-PpY";
 
-      let supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-      let state = { messdiener: [], gottesdienste: [], assignments: {} };
+      let supabaseClient = null;
+      if (SUPABASE_URL !== "DEINE_SUPABASE_URL_HIER") {
+        supabaseClient = window.supabase.createClient(
+          SUPABASE_URL,
+          SUPABASE_ANON_KEY,
+        );
+      } else {
+        document.getElementById("db-status-bar").classList.remove("hidden");
+        document.getElementById("stat-db").innerText = "Nicht konfiguriert";
+        document.getElementById("stat-db").className =
+          "text-lg font-bold text-amber-600 mt-1";
+      }
+
+      let state = {
+        messdiener: [],
+        gottesdienste: [],
+        assignments: {},
+      };
       let activeUserId = null;
 
-      function showLoginError(msg) {
-        const err = document.getElementById("login-error");
-        err.textContent = msg;
-        err.classList.remove("hidden");
+      function showLoginError(message) {
+        const error = document.getElementById("login-error");
+        error.textContent = message;
+        error.classList.remove("hidden");
       }
 
       async function signIn(event) {
         event.preventDefault();
-        const email = document.getElementById("login-email").value.trim();
-        const password = document.getElementById("login-password").value;
-        const btn = document.getElementById("login-submit");
+        if (!supabaseClient) {
+          showLoginError("Die Supabase-Verbindung ist nicht konfiguriert.");
+          return;
+        }
 
-        document.getElementById("login-error").classList.add("hidden");
-        btn.disabled = true;
-        btn.textContent = "Anmeldung läuft…";
+        const submitButton = document.getElementById("login-submit");
+        const error = document.getElementById("login-error");
+        error.textContent = "";
+        error.classList.add("hidden");
+        submitButton.disabled = true;
+        submitButton.textContent = "Anmeldung läuft …";
 
-        const { error } = await supabaseClient.auth.signInWithPassword({ email, password });
+        const { error: signInError } =
+          await supabaseClient.auth.signInWithPassword({
+            email: document.getElementById("login-email").value.trim(),
+            password: document.getElementById("login-password").value,
+          });
 
-        btn.disabled = false;
-        btn.textContent = "Anmelden";
-
-        if (error) {
-          showLoginError("Anmeldung fehlgeschlagen: " + error.message);
+        submitButton.disabled = false;
+        submitButton.textContent = "Anmelden";
+        if (signInError) {
+          showLoginError(
+            "Anmeldung fehlgeschlagen. Bitte E-Mail-Adresse und Passwort prüfen.",
+          );
+          console.error("Supabase sign-in failed:", signInError.message);
         }
       }
 
       async function signOut() {
-        await supabaseClient.auth.signOut();
+        if (!supabaseClient) return;
+        const { error } = await supabaseClient.auth.signOut();
+        if (error) {
+          alert(`Abmelden fehlgeschlagen: ${error.message}`);
+        }
       }
 
-      // Auth Überwachung (Schaltet automatisch um)
-      supabaseClient.auth.onAuthStateChange((event, session) => {
-        const loginScreen = document.getElementById("login-screen");
-        const appContent = document.getElementById("app-content");
-
-        if (session) {
-          loginScreen.classList.add("hidden");
-          appContent.classList.remove("hidden");
-          appContent.classList.add("flex");
-          document.getElementById("signed-in-email").textContent = session.user.email;
-          
-          if (activeUserId !== session.user.id) {
-            activeUserId = session.user.id;
-            loadDataFromDB();
-          }
-        } else {
-          activeUserId = null;
-          appContent.classList.add("hidden");
-          appContent.classList.remove("flex");
-          loginScreen.classList.remove("hidden");
-          state = { messdiener: [], gottesdienste: [], assignments: {} };
+      function initializeAuth() {
+        if (!supabaseClient) {
+          document.getElementById("login-form").classList.add("hidden");
+          showLoginError(
+            "Die Supabase-Zugangsdaten sind nicht konfiguriert. Bitte wende dich an die Projektverwaltung.",
+          );
+          return;
         }
-      });
 
-      const dayNames = ["Sonntag", "Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag", "Samstag"];
+        supabaseClient.auth.onAuthStateChange((event, session) => {
+          const loginScreen = document.getElementById("login-screen");
+          const appContent = document.getElementById("app-content");
+          if (session) {
+            loginScreen.classList.add("hidden");
+            appContent.classList.remove("hidden");
+            appContent.classList.add("flex");
+            document.getElementById("signed-in-email").textContent =
+              session.user.email || "";
 
-      function sortGottesdiensteByDate(items) {
-        return [...items].sort((a, b) => {
-          const dateCmp = String(a.date || "").localeCompare(String(b.date || ""));
-          if (dateCmp !== 0) return dateCmp;
-          return String(a.time || "").localeCompare(String(b.time || ""));
+            if (activeUserId !== session.user.id) {
+              activeUserId = session.user.id;
+              setTimeout(() => loadDataFromDB(), 0);
+            }
+          } else {
+            activeUserId = null;
+            appContent.classList.add("hidden");
+            appContent.classList.remove("flex");
+            loginScreen.classList.remove("hidden");
+            state = { messdiener: [], gottesdienste: [], assignments: {} };
+          }
         });
       }
 
+      const dayNames = [
+        "Sonntag",
+        "Montag",
+        "Dienstag",
+        "Mittwoch",
+        "Donnerstag",
+        "Freitag",
+        "Samstag",
+      ];
+
+      function formatLocalDate(date) {
+        const year = date.getFullYear();
+        const month = String(date.getMonth() + 1).padStart(2, "0");
+        const day = String(date.getDate()).padStart(2, "0");
+        return `${year}-${month}-${day}`;
+      }
+
+      function addDaysToDate(dateString, days) {
+        const date = new Date(`${dateString}T12:00:00`);
+        date.setDate(date.getDate() + days);
+        return formatLocalDate(date);
+      }
+
+      function getSchedulePeriod() {
+        return {
+          start: document.getElementById("schedule-start").value,
+          end: document.getElementById("schedule-end").value,
+        };
+      }
+
+      function getGottesdiensteInSchedulePeriod() {
+        const { start, end } = getSchedulePeriod();
+        if (!start || !end) return state.gottesdienste;
+        return state.gottesdienste.filter(
+          (g) => g.date >= start && g.date <= end,
+        );
+      }
+
+      // DB Daten initial laden
       async function loadDataFromDB() {
+        if (!supabaseClient) return;
+
         const { data: mData } = await supabaseClient.from("messdiener").select("*");
-        const { data: gData } = await supabaseClient.from("gottesdienste").select("*");
+        const { data: gData } = await supabaseClient
+          .from("gottesdienste")
+          .select("*");
         const { data: aData } = await supabaseClient.from("assignments").select("*");
 
         if (mData) state.messdiener = mData;
-        if (gData) state.gottesdienste = sortGottesdiensteByDate(gData);
-        
+        if (gData) state.gottesdienste = gData;
+
         state.assignments = {};
         if (aData) {
-          aData.forEach(item => {
-            state.assignments[item.gottesdienst_id] = { seniors: item.seniors, juniors: item.juniors };
+          aData.forEach((item) => {
+            state.assignments[item.gottesdienst_id] = {
+              seniors: item.seniors,
+              juniors: item.juniors,
+            };
           });
         }
+
         renderAll();
       }
 
       function switchTab(tabId) {
-        ['dashboard', 'messdiener', 'gottesdienste', 'einteilung', 'export'].forEach(t => {
-          document.getElementById('tab-' + t).classList.add('hidden');
-          document.getElementById('btn-' + t).classList.remove('bg-brand-600', 'text-white');
-          document.getElementById('btn-' + t).classList.add('text-slate-300');
+        [
+          "dashboard",
+          "messdiener",
+          "gottesdienste",
+          "einteilung",
+          "export",
+        ].forEach((t) => {
+          document.getElementById("tab-" + t).classList.add("hidden");
+          document
+            .getElementById("btn-" + t)
+            .classList.remove("bg-brand-600", "text-white");
+          document.getElementById("btn-" + t).classList.add("text-slate-300");
         });
-        document.getElementById('tab-' + tabId).classList.remove('hidden');
-        document.getElementById('btn-' + tabId).classList.add('bg-brand-600', 'text-white');
-        document.getElementById('btn-' + tabId).classList.remove('text-slate-300');
+        document.getElementById("tab-" + tabId).classList.remove("hidden");
+        document
+          .getElementById("btn-" + tabId)
+          .classList.add("bg-brand-600", "text-white");
+        document
+          .getElementById("btn-" + tabId)
+          .classList.remove("text-slate-300");
 
-        if (tabId === 'export') generateWhatsAppExport();
+        if (tabId === "export") {
+          generateWhatsAppExport();
+        }
       }
 
       function renderAll() {
-        document.getElementById('stat-messdiener').innerText = state.messdiener.length;
-        document.getElementById('stat-gottesdienste').innerText = state.gottesdienste.length;
+        document.getElementById("stat-messdiener").innerText =
+          state.messdiener.length;
+        document.getElementById("stat-gottesdienste").innerText =
+          state.gottesdienste.length;
 
-        document.getElementById('messdiener-table-body').innerHTML = state.messdiener.map(m => `
-          <tr class="hover:bg-slate-50 transition">
-            <td class="p-4" data-label="Name">${m.name}</td>
-            <td class="p-4" data-label="Rolle">${m.type === 'Senior' ? 'Leiter' : 'Kind'}</td>
-            <td class="p-4" data-label="Tage">${(m.days || []).map(d => dayNames[d]).join(', ')}</td>
-            <td class="p-4 text-right"><button onclick="deleteMessdiener('${m.id}')" class="text-rose-600 text-xs">Löschen</button></td>
-          </tr>
-        `).join('');
+        // Messdiener Tabelle
+        document.getElementById("messdiener-table-body").innerHTML =
+          state.messdiener
+            .map(
+              (m) => `
+                <tr class="hover:bg-slate-50 transition">
+                    <td data-label="Name" class="p-4 font-medium text-slate-900">${m.name}</td>
+                    <td data-label="Rolle" class="p-4"><span class="px-2.5 py-1 text-xs rounded-full font-medium ${m.type === "Senior" ? "bg-purple-100 text-purple-700" : "bg-blue-100 text-blue-700"}">${m.type === "Senior" ? "Leiter" : "Kinder"}</span></td>
+                    <td data-label="Wochentage" class="p-4 text-slate-600">${(m.days || []).map((d) => dayNames[d]).join(", ")}</td>
+                    <td class="td-action p-4 text-right">
+                        <button onclick="deleteMessdiener('${m.id}')" class="text-rose-600 hover:text-rose-800 text-xs font-medium px-3 py-2 rounded-lg border border-rose-200 md:border-0 md:p-0">Löschen</button>
+                    </td>
+                </tr>
+            `,
+            )
+            .join("");
 
-        document.getElementById('gottesdienst-table-body').innerHTML = sortGottesdiensteByDate(state.gottesdienste).map(g => `
-          <tr class="hover:bg-slate-50 transition">
-            <td class="p-4" data-label="Datum & Uhrzeit">${g.date} ${g.time} Uhr</td>
-            <td class="p-4" data-label="Anlass">${g.title}</td>
-            <td class="p-4" data-label="Dienste">${g.seniors} Leiter, ${g.juniors} Kinder</td>
-            <td class="p-4 text-right"><button onclick="deleteGottesdienst('${g.id}')" class="text-rose-600 text-xs">Löschen</button></td>
-          </tr>
-        `).join('');
+        // Gottesdienst Tabelle
+        document.getElementById("gottesdienst-table-body").innerHTML =
+          state.gottesdienste
+            .map(
+              (g) => `
+                <tr class="hover:bg-slate-50 transition">
+                    <td data-label="Termin" class="p-4 font-medium text-slate-900">${g.date} um ${g.time} Uhr</td>
+                    <td data-label="Anlass" class="p-4">${g.title}</td>
+                    <td data-label="Dienste" class="p-4 text-slate-600">${g.seniors} Leiter, ${g.juniors} Kinder</td>
+                    <td class="td-action p-4 text-right">
+                        <button onclick="deleteGottesdienst('${g.id}')" class="text-rose-600 hover:text-rose-800 text-xs font-medium px-3 py-2 rounded-lg border border-rose-200 md:border-0 md:p-0">Löschen</button>
+                    </td>
+                </tr>
+            `,
+            )
+            .join("");
+
+        renderScheduleResults();
       }
 
-      function openMessdienerModal() { document.getElementById('modal-messdiener').classList.remove('hidden'); document.getElementById('modal-messdiener').classList.add('flex'); }
-      function openGottesdienstModal() { document.getElementById('modal-gottesdienst').classList.remove('hidden'); document.getElementById('modal-gottesdienst').classList.add('flex'); }
-      function closeModals() { document.querySelectorAll('.fixed').forEach(m => { m.classList.add('hidden'); m.classList.remove('flex'); }); }
+      // Modals
+      function openMessdienerModal() {
+        document.getElementById("m-name").value = "";
+        document
+          .querySelectorAll("#m-days input")
+          .forEach((cb) => (cb.checked = false));
+        document.getElementById("modal-messdiener").classList.remove("hidden");
+        document.getElementById("modal-messdiener").classList.add("flex");
+      }
 
+      function openGottesdienstModal() {
+        const repeatCheckbox = document.getElementById("g-repeat-weekly");
+        const repeatEnd = document.getElementById("g-repeat-end");
+        repeatCheckbox.checked = false;
+        repeatEnd.value = "";
+        repeatEnd.disabled = true;
+        repeatEnd.required = false;
+        document
+          .getElementById("g-repeat-end-container")
+          .classList.add("hidden");
+        document
+          .getElementById("modal-gottesdienst")
+          .classList.remove("hidden");
+        document.getElementById("modal-gottesdienst").classList.add("flex");
+      }
+
+      function closeModals() {
+        document.querySelectorAll(".fixed").forEach((m) => {
+          m.classList.add("hidden");
+          m.classList.remove("flex");
+        });
+      }
+
+      // Speichern in Supabase
       async function saveMessdiener() {
-        const name = document.getElementById('m-name').value.trim();
-        const type = document.getElementById('m-type').value;
-        const days = Array.from(document.querySelectorAll('#m-days input:checked')).map(cb => parseInt(cb.value));
-        if (!name) return alert('Bitte Namen eingeben.');
-        await supabaseClient.from('messdiener').insert([{ id: Date.now().toString(), name, type, days }]);
+        const name = document.getElementById("m-name").value.trim();
+        const type = document.getElementById("m-type").value;
+        const days = Array.from(
+          document.querySelectorAll("#m-days input:checked"),
+        ).map((cb) => parseInt(cb.value));
+
+        if (!name) return alert("Bitte Namen eingeben.");
+
+        const newM = { id: Date.now().toString(), name, type, days };
+        if (supabaseClient) {
+          await supabaseClient.from("messdiener").insert([newM]);
+          await loadDataFromDB();
+        }
         closeModals();
-        loadDataFromDB();
       }
 
       async function deleteMessdiener(id) {
-        await supabaseClient.from('messdiener').delete().eq('id', id);
-        loadDataFromDB();
+        if (supabaseClient) {
+          await supabaseClient.from("messdiener").delete().eq("id", id);
+          await loadDataFromDB();
+        }
       }
 
       async function saveGottesdienst() {
-        const title = document.getElementById('g-title').value;
-        const date = document.getElementById('g-date').value;
-        const time = document.getElementById('g-time').value;
-        const seniors = parseInt(document.getElementById('g-seniors').value);
-        const juniors = parseInt(document.getElementById('g-juniors').value);
-        if (!date) return alert('Bitte Datum angeben.');
-        await supabaseClient.from('gottesdienste').insert([{ id: Date.now().toString(), title, date, time, seniors, juniors }]);
+        const title = document.getElementById("g-title").value.trim();
+        const date = document.getElementById("g-date").value;
+        const time = document.getElementById("g-time").value;
+        const seniors = parseInt(document.getElementById("g-seniors").value);
+        const juniors = parseInt(document.getElementById("g-juniors").value);
+        const repeatsWeekly =
+          document.getElementById("g-repeat-weekly").checked;
+        const repeatEnd = document.getElementById("g-repeat-end").value;
+
+        if (!date) return alert("Bitte Datum angeben.");
+        if (!title) return alert("Bitte Anlass / Titel angeben.");
+        if (
+          repeatsWeekly &&
+          (!repeatEnd || repeatEnd < date)
+        ) {
+          return alert(
+            "Bitte ein Wiederholungsende am oder nach dem ersten Messdatum angeben.",
+          );
+        }
+
+        const dates = [date];
+        if (repeatsWeekly) {
+          for (
+            let nextDate = addDaysToDate(date, 7);
+            nextDate <= repeatEnd;
+            nextDate = addDaysToDate(nextDate, 7)
+          ) {
+            dates.push(nextDate);
+          }
+        }
+        const timestamp = Date.now();
+        const newGottesdienste = dates.map((eventDate, index) => ({
+          id: String(timestamp + index),
+          title,
+          date: eventDate,
+          time,
+          seniors,
+          juniors,
+        }));
+        if (supabaseClient) {
+          const { error } = await supabaseClient
+            .from("gottesdienste")
+            .insert(newGottesdienste);
+          if (error) {
+            alert(`Gottesdienste konnten nicht gespeichert werden: ${error.message}`);
+            return;
+          }
+          await loadDataFromDB();
+        }
         closeModals();
-        loadDataFromDB();
       }
 
       async function deleteGottesdienst(id) {
-        await supabaseClient.from('gottesdienste').delete().eq('id', id);
-        await supabaseClient.from('assignments').delete().eq('gottesdienst_id', id);
-        loadDataFromDB();
+        if (supabaseClient) {
+          await supabaseClient.from("gottesdienste").delete().eq("id", id);
+          await supabaseClient.from("assignments").delete().eq("gottesdienst_id", id);
+          await loadDataFromDB();
+        }
       }
 
+      // Automatischer Algorithmus
       async function runAutoAssign() {
-        let counts = {};
-        state.messdiener.forEach(m => counts[m.id] = 0);
+        const { start, end } = getSchedulePeriod();
+        if (!start || !end) {
+          return alert("Bitte Start- und Enddatum der Einteilung angeben.");
+        }
+        if (end < start) {
+          return alert("Das Enddatum muss am oder nach dem Startdatum liegen.");
+        }
 
-        for (const g of state.gottesdienste) {
+        let assignmentCounts = {};
+        state.messdiener.forEach((m) => (assignmentCounts[m.id] = 0));
+
+        const sortedG = getGottesdiensteInSchedulePeriod().sort(
+          (a, b) => new Date(a.date) - new Date(b.date),
+        );
+        if (sortedG.length === 0) {
+          return alert("Im ausgewählten Zeitraum gibt es keine Gottesdienste.");
+        }
+
+        const assignmentsToSave = [];
+        for (const g of sortedG) {
           const dayOfWeek = new Date(`${g.date}T12:00:00`).getDay();
-          const available = state.messdiener.filter(m => (m.days || []).includes(dayOfWeek));
-          
-          const seniors = available.filter(m => m.type === 'Senior').sort((a,b) => counts[a.id] - counts[b.id]);
-          const juniors = available.filter(m => m.type === 'Junior').sort((a,b) => counts[a.id] - counts[b.id]);
+          const available = state.messdiener.filter((m) =>
+            (m.days || []).includes(dayOfWeek),
+          );
 
-          let chosenSeniors = seniors.slice(0, g.seniors);
-          chosenSeniors.forEach(s => counts[s.id]++);
+          const availableSeniors = available
+            .filter((m) => m.type === "Senior")
+            .sort((a, b) => assignmentCounts[a.id] - assignmentCounts[b.id]);
+          const availableJuniors = available
+            .filter((m) => m.type === "Junior")
+            .sort((a, b) => assignmentCounts[a.id] - assignmentCounts[b.id]);
 
-          let chosenJuniors = juniors.slice(0, g.juniors);
-          chosenJuniors.forEach(j => counts[j.id]++);
+          let chosenSeniors = [];
+          for (let i = 0; i < g.seniors && i < availableSeniors.length; i++) {
+            chosenSeniors.push(availableSeniors[i]);
+            assignmentCounts[availableSeniors[i].id]++;
+          }
 
-          await supabaseClient.from('assignments').upsert([{
+          let chosenJuniors = [];
+          for (let i = 0; i < g.juniors && i < availableJuniors.length; i++) {
+            chosenJuniors.push(availableJuniors[i]);
+            assignmentCounts[availableJuniors[i].id]++;
+          }
+
+          assignmentsToSave.push({
             gottesdienst_id: g.id,
             seniors: chosenSeniors,
-            juniors: chosenJuniors
-          }]);
+            juniors: chosenJuniors,
+          });
         }
-        loadDataFromDB();
-        alert('Dienstplan erfolgreich generiert!');
+
+        if (supabaseClient) {
+          const { error } = await supabaseClient
+            .from("assignments")
+            .upsert(assignmentsToSave);
+          if (error) {
+            alert(`Dienstplan konnte nicht gespeichert werden: ${error.message}`);
+            return;
+          }
+        }
+
+        await loadDataFromDB();
+        alert("Dienstplan erfolgreich generiert und in DB gespeichert!");
+      }
+
+      function renderScheduleResults() {
+        const container = document.getElementById("schedule-results");
+        const scheduleGottesdienste = getGottesdiensteInSchedulePeriod();
+        if (scheduleGottesdienste.length === 0) {
+          container.innerHTML = `<div class="bg-white p-6 sm:p-8 rounded-xl shadow-sm border border-slate-200 text-center text-slate-500">Im ausgewählten Zeitraum gibt es keine Gottesdienste.</div>`;
+          return;
+        }
+        if (
+          !scheduleGottesdienste.some((g) => state.assignments[g.id])
+        ) {
+          container.innerHTML = `<div class="bg-white p-6 sm:p-8 rounded-xl shadow-sm border border-slate-200 text-center text-slate-500">Noch kein Plan generiert. Klicke oben auf „Jetzt automatisch einteilen“.</div>`;
+          return;
+        }
+
+        container.innerHTML = scheduleGottesdienste
+          .map((g) => {
+            const assigned = state.assignments[g.id] || {
+              seniors: [],
+              juniors: [],
+            };
+            return `
+                    <div class="bg-white p-4 sm:p-6 rounded-xl shadow-sm border border-slate-200 space-y-3">
+                        <div class="flex justify-between items-start">
+                            <div>
+                                <h3 class="font-bold text-slate-900 text-lg">${g.title}</h3>
+                                <p class="text-xs text-slate-500">${g.date} um ${g.time} Uhr</p>
+                            </div>
+                        </div>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
+                            <div class="bg-purple-50 p-3 rounded-lg border border-purple-100">
+                                <span class="text-xs font-bold text-purple-700 uppercase tracking-wide">Leiter</span>
+                                <div class="mt-1 font-medium text-purple-900 text-sm break-words">
+                                    ${assigned.seniors.length ? assigned.seniors.map((s) => s.name).join(", ") : '<span class="text-rose-600">Niemand eingeteilt / verfügbar</span>'}
+                                </div>
+                            </div>
+                            <div class="bg-blue-50 p-3 rounded-lg border border-blue-100">
+                                <span class="text-xs font-bold text-blue-700 uppercase tracking-wide">Kinder</span>
+                                <div class="mt-1 font-medium text-blue-900 text-sm break-words">
+                                    ${assigned.juniors.length ? assigned.juniors.map((j) => j.name).join(", ") : '<span class="text-rose-600">Niemand eingeteilt / verfügbar</span>'}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+          })
+          .join("");
       }
 
       function generateWhatsAppExport() {
         let text = "⛪ *Messdiener-Dienstplan* ⛪\n\n";
-        state.gottesdienste.forEach(g => {
+        getGottesdiensteInSchedulePeriod().forEach((g) => {
           const a = state.assignments[g.id] || { seniors: [], juniors: [] };
           text += `📅 *${g.date} (${g.time} Uhr)* - ${g.title}\n`;
-          text += `• Leiter: ${a.seniors.map(s => s.name).join(', ') || 'Keine'}\n`;
-          text += `• Kinder: ${a.juniors.map(j => j.name).join(', ') || 'Keine'}\n\n`;
+          text += `• Leiter: ${a.seniors.map((s) => s.name).join(", ") || "Keine"}\n`;
+          text += `• Kinder: ${a.juniors.map((j) => j.name).join(", ") || "Keine"}\n\n`;
         });
-        document.getElementById('whatsapp-output').value = text.trim();
+        document.getElementById("whatsapp-output").value = text.trim();
+      }
+
+      function escapeHtml(value) {
+        return String(value).replace(/[&<>"']/g, (character) => {
+          const entities = {
+            "&": "&amp;",
+            "<": "&lt;",
+            ">": "&gt;",
+            '"': "&quot;",
+            "'": "&#39;",
+          };
+          return entities[character];
+        });
       }
 
       function exportSchedulePdf() {
-        let html = `<h1>Messdiener-Dienstplan</h1><table><thead><tr><th>Datum</th><th>Titel</th><th>Leiter</th><th>Kinder</th></tr></thead><tbody>`;
-        state.gottesdienste.forEach(g => {
-          const a = state.assignments[g.id] || { seniors: [], juniors: [] };
-          html += `<tr><td>${g.date} ${g.time}</td><td>${g.title}</td><td>${a.seniors.map(s => s.name).join(', ')}</td><td>${a.juniors.map(j => j.name).join(', ')}</td></tr>`;
-        });
-        html += `</tbody></table>`;
-        document.getElementById('pdf-print-area').innerHTML = html;
+        const { start, end } = getSchedulePeriod();
+        if (!start || !end) {
+          return alert("Bitte Start- und Enddatum der Einteilung angeben.");
+        }
+        if (end < start) {
+          return alert("Das Enddatum muss am oder nach dem Startdatum liegen.");
+        }
+
+        const gottesdienste = getGottesdiensteInSchedulePeriod().sort(
+          (a, b) =>
+            a.date.localeCompare(b.date) || a.time.localeCompare(b.time),
+        );
+        if (gottesdienste.length === 0) {
+          return alert("Im ausgewählten Zeitraum gibt es keine Gottesdienste.");
+        }
+
+        const formatDate = (dateString) =>
+          new Date(`${dateString}T12:00:00`).toLocaleDateString("de-DE");
+        const rows = gottesdienste
+          .map((g) => {
+            const assignment = state.assignments[g.id] || {
+              seniors: [],
+              juniors: [],
+            };
+            const leaders =
+              assignment.seniors.map((person) => person.name).join(", ") ||
+              "Noch nicht eingeteilt";
+            const children =
+              assignment.juniors.map((person) => person.name).join(", ") ||
+              "Noch nicht eingeteilt";
+
+            return `
+              <tr>
+                <td>${escapeHtml(formatDate(g.date))}</td>
+                <td>${escapeHtml(g.time)}</td>
+                <td>${escapeHtml(g.title)}</td>
+                <td>${escapeHtml(leaders)}</td>
+                <td>${escapeHtml(children)}</td>
+              </tr>`;
+          })
+          .join("");
+
+        document.getElementById("pdf-print-area").innerHTML = `
+          <h1>Messdiener-Dienstplan</h1>
+          <p class="period">Einteilungszeitraum: ${escapeHtml(formatDate(start))} bis ${escapeHtml(formatDate(end))}</p>
+          <table>
+            <thead>
+              <tr>
+                <th>Datum</th>
+                <th>Uhrzeit</th>
+                <th>Messe</th>
+                <th>Leiter</th>
+                <th>Kinder</th>
+              </tr>
+            </thead>
+            <tbody>${rows}</tbody>
+          </table>`;
         window.print();
       }
+
+      // Initialisierung
+      const today = new Date();
+      const defaultStart = formatLocalDate(today);
+      const defaultEndDate = new Date(today);
+      defaultEndDate.setDate(defaultEndDate.getDate() + 90);
+      document.getElementById("schedule-start").value = defaultStart;
+      document.getElementById("schedule-end").value =
+        formatLocalDate(defaultEndDate);
+
+      const repeatCheckbox = document.getElementById("g-repeat-weekly");
+      const repeatEnd = document.getElementById("g-repeat-end");
+      repeatCheckbox.addEventListener("change", () => {
+        const isEnabled = repeatCheckbox.checked;
+        document
+          .getElementById("g-repeat-end-container")
+          .classList.toggle("hidden", !isEnabled);
+        repeatEnd.disabled = !isEnabled;
+        repeatEnd.required = isEnabled;
+        repeatEnd.min = document.getElementById("g-date").value;
+      });
+      document.getElementById("g-date").addEventListener("change", (event) => {
+        repeatEnd.min = event.target.value;
+      });
+      document
+        .getElementById("schedule-start")
+        .addEventListener("change", renderScheduleResults);
+      document
+        .getElementById("schedule-end")
+        .addEventListener("change", renderScheduleResults);
+
+      initializeAuth();
     </script>
   </body>
 </html>
