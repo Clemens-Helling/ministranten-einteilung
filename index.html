@@ -550,13 +550,17 @@
         const names = (list) => (list || []).map(p => escHtml(p.name)).join(', ');
         box.innerHTML = items.map(g => {
           const a = state.assignments[g.id] || { seniors: [], juniors: [] };
-          const sOk = (a.seniors || []).length >= g.seniors;
-          const jOk = (a.juniors || []).length >= g.juniors;
+          const everyone = isEveryoneAssigned(g);
+          const sOk = everyone || (a.seniors || []).length >= g.seniors;
+          const jOk = everyone || (a.juniors || []).length >= g.juniors;
+          const lines = everyone
+            ? `<div class="text-sm mt-2 text-slate-700"><span class="font-medium">Gruppe:</span> alle</div>`
+            : `<div class="text-sm mt-2 ${sOk ? 'text-slate-700' : 'text-amber-600'}"><span class="font-medium">Leiter:</span> ${names(a.seniors) || 'Keine'}</div>
+              <div class="text-sm ${jOk ? 'text-slate-700' : 'text-amber-600'}"><span class="font-medium">Kinder:</span> ${names(a.juniors) || 'Keine'}</div>`;
           return `
             <div class="bg-white p-4 rounded-xl shadow-sm border border-slate-200 cursor-pointer hover:bg-slate-50 transition" onclick="openGottesdienstEdit('${g.id}')" title="Zum Bearbeiten klicken">
               <div class="font-semibold text-slate-900">${escHtml(g.date)} ${escHtml(g.time)} Uhr – ${escHtml(g.title)}</div>
-              <div class="text-sm mt-2 ${sOk ? 'text-slate-700' : 'text-amber-600'}"><span class="font-medium">Leiter:</span> ${names(a.seniors) || 'Keine'}</div>
-              <div class="text-sm ${jOk ? 'text-slate-700' : 'text-amber-600'}"><span class="font-medium">Kinder:</span> ${names(a.juniors) || 'Keine'}</div>
+              ${lines}
             </div>`;
         }).join('');
       }
@@ -958,16 +962,23 @@
         return isSpecialService(g) ? g.title.trim() : dayNames[new Date(`${g.date}T12:00:00`).getDay()];
       }
 
-      // Leiter und Kinder in einem Feld; "alle", wenn jeder Mini eingeteilt ist
+      // true, wenn jeder an diesem Wochentag verfügbare Mini eingeteilt ist
+      function isEveryoneAssigned(g) {
+        const a = state.assignments[g.id] || { seniors: [], juniors: [] };
+        const people = [...(a.seniors || []), ...(a.juniors || [])];
+        if (people.length === 0) return false;
+        const dow = new Date(`${g.date}T12:00:00`).getDay();
+        const available = state.messdiener.filter(m => (m.days || []).includes(dow));
+        const assignedIds = new Set(people.map(p => String(p.id)));
+        return available.length > 0 && available.every(m => assignedIds.has(String(m.id)));
+      }
+
+      // Leiter und Kinder in einem Feld; "alle", wenn jeder verfügbare Mini eingeteilt ist
       function groupText(g) {
         const a = state.assignments[g.id] || { seniors: [], juniors: [] };
         const people = [...(a.seniors || []), ...(a.juniors || [])];
         if (people.length === 0) return '';
-        // "alle", wenn jeder an diesem Wochentag verfügbare Mini eingeteilt ist
-        const dow = new Date(`${g.date}T12:00:00`).getDay();
-        const available = state.messdiener.filter(m => (m.days || []).includes(dow));
-        const assignedIds = new Set(people.map(p => String(p.id)));
-        if (available.length > 0 && available.every(m => assignedIds.has(String(m.id)))) return 'alle';
+        if (isEveryoneAssigned(g)) return 'alle';
         return people.map(p => p.name).join(', ');
       }
 
