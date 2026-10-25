@@ -124,29 +124,7 @@
       <main class="max-w-7xl mx-auto px-4 py-6 md:py-8 flex-grow w-full">
         <!-- TAB: DASHBOARD -->
         <section id="tab-dashboard" class="space-y-6">
-          <div class="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6">
-            <div class="bg-white p-4 sm:p-6 rounded-xl shadow-sm border border-slate-200 flex items-center justify-between">
-              <div>
-                <p class="text-sm font-medium text-slate-500">Aktive Messdiener</p>
-                <h3 id="stat-messdiener" class="text-3xl font-bold text-slate-900 mt-1">0</h3>
-              </div>
-              <div class="p-3 bg-brand-50 text-brand-600 rounded-lg text-2xl">👦</div>
-            </div>
-            <div class="bg-white p-4 sm:p-6 rounded-xl shadow-sm border border-slate-200 flex items-center justify-between">
-              <div>
-                <p class="text-sm font-medium text-slate-500">Geplante Gottesdienste</p>
-                <h3 id="stat-gottesdienste" class="text-3xl font-bold text-slate-900 mt-1">0</h3>
-              </div>
-              <div class="p-3 bg-blue-50 text-blue-600 rounded-lg text-2xl">📅</div>
-            </div>
-            <div class="bg-white p-4 sm:p-6 rounded-xl shadow-sm border border-slate-200 flex items-center justify-between">
-              <div>
-                <p class="text-sm font-medium text-slate-500">Status DB</p>
-                <h3 id="stat-db" class="text-lg font-bold text-emerald-600 mt-1">Verbunden</h3>
-              </div>
-              <div class="p-3 bg-amber-50 text-amber-600 rounded-lg text-2xl">🛢️</div>
-            </div>
-          </div>
+          <div id="dashboard-content" class="space-y-6"></div>
         </section>
 
         <!-- TAB: MESSDIENER -->
@@ -512,8 +490,7 @@
       }
 
       function renderAll() {
-        document.getElementById('stat-messdiener').innerText = state.messdiener.length;
-        document.getElementById('stat-gottesdienste').innerText = state.gottesdienste.length;
+        renderDashboard();
 
         document.getElementById('messdiener-table-body').innerHTML = state.messdiener.map(m => `
           <tr class="hover:bg-slate-50 transition cursor-pointer" onclick="openMessdienerModal('${m.id}')" title="Zum Bearbeiten klicken">
@@ -536,6 +513,117 @@
         `).join('');
 
         renderScheduleResults();
+      }
+
+      // ---------- Dashboard ----------
+      function todayString() {
+        const d = new Date();
+        return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+      }
+
+      // 'offen' = niemand eingeteilt, 'unterbesetzt' = zu wenige, 'ok' = vollständig
+      function serviceStatus(g) {
+        const a = state.assignments[g.id] || { seniors: [], juniors: [] };
+        const total = (a.seniors || []).length + (a.juniors || []).length;
+        if (total === 0) return 'offen';
+        if (isEveryoneAssigned(g)) return 'ok';
+        if ((a.seniors || []).length < g.seniors || (a.juniors || []).length < g.juniors) return 'unterbesetzt';
+        return 'ok';
+      }
+
+      function renderDashboard() {
+        const box = document.getElementById('dashboard-content');
+        if (!box) return;
+
+        const today = todayString();
+        const upcoming = sortGottesdiensteByDate(state.gottesdienste.filter(g => g.date >= today));
+        const seniorsCount = state.messdiener.filter(m => m.type === 'Senior').length;
+        const juniorsCount = state.messdiener.length - seniorsCount;
+        const statuses = upcoming.map(g => ({ g, status: serviceStatus(g) }));
+        const okCount = statuses.filter(x => x.status === 'ok').length;
+        const problems = statuses.filter(x => x.status !== 'ok');
+
+        const badge = (status) => ({
+          ok: '<span class="px-2 py-0.5 text-xs rounded-full bg-emerald-100 text-emerald-700 whitespace-nowrap">eingeteilt</span>',
+          unterbesetzt: '<span class="px-2 py-0.5 text-xs rounded-full bg-amber-100 text-amber-700 whitespace-nowrap">unterbesetzt</span>',
+          offen: '<span class="px-2 py-0.5 text-xs rounded-full bg-rose-100 text-rose-700 whitespace-nowrap">nicht eingeteilt</span>',
+        }[status]);
+
+        const card = (label, value, sub, tone) => `
+          <div class="bg-white p-4 sm:p-5 rounded-xl shadow-sm border border-slate-200">
+            <p class="text-sm font-medium text-slate-500">${label}</p>
+            <p class="text-3xl font-bold mt-1 ${tone}">${value}</p>
+            <p class="text-xs text-slate-500 mt-1">${sub}</p>
+          </div>`;
+
+        const rowFor = ({ g, status }) => {
+          const group = groupText(g);
+          return `
+            <div class="flex items-start justify-between gap-3 p-3 rounded-lg hover:bg-slate-50 cursor-pointer transition" onclick="openGottesdienstEdit('${g.id}')" title="Zum Bearbeiten klicken">
+              <div class="min-w-0">
+                <div class="text-sm font-semibold text-slate-900">${formatDateShort(g.date)} · ${escHtml(serviceLabel(g))} · ${formatTimeShort(g.time)}</div>
+                <div class="text-sm text-slate-600 mt-0.5 break-words">${group ? escHtml(group) : '<span class="text-slate-400">noch niemand eingeteilt</span>'}</div>
+              </div>
+              ${badge(status)}
+            </div>`;
+        };
+
+        // Einsätze pro Mini in kommenden Gottesdiensten
+        const counts = {};
+        state.messdiener.forEach(m => counts[String(m.id)] = 0);
+        upcoming.forEach(g => {
+          const a = state.assignments[g.id] || { seniors: [], juniors: [] };
+          [...(a.seniors || []), ...(a.juniors || [])].forEach(p => { if (String(p.id) in counts) counts[String(p.id)]++; });
+        });
+        const ranking = state.messdiener
+          .map(m => ({ m, n: counts[String(m.id)] }))
+          .sort((x, y) => y.n - x.n || x.m.name.localeCompare(y.m.name, 'de'));
+        const maxN = Math.max(1, ...ranking.map(r => r.n));
+        const barRow = ({ m, n }) => `
+          <div class="flex items-center gap-2 text-sm">
+            <span class="w-28 sm:w-32 truncate ${n === 0 ? 'text-amber-700' : 'text-slate-700'}" title="${escHtml(m.name)}">${escHtml(m.name)}</span>
+            <div class="flex-1 h-2.5 bg-slate-100 rounded-full overflow-hidden">
+              <div class="h-full rounded-full ${m.type === 'Senior' ? 'bg-purple-400' : 'bg-brand-500'}" style="width:${(n / maxN) * 100}%"></div>
+            </div>
+            <span class="w-6 text-right text-slate-600 tabular-nums">${n}</span>
+          </div>`;
+
+        const btn = 'px-4 py-2 rounded-lg text-sm font-medium transition';
+        box.innerHTML = `
+          <div class="flex flex-wrap gap-3">
+            <button onclick="switchTab('gottesdienste'); openGottesdienstModal()" class="${btn} bg-brand-600 hover:bg-brand-700 text-white shadow-sm">+ Gottesdienst</button>
+            <button onclick="switchTab('einteilung')" class="${btn} bg-white border border-slate-300 hover:bg-slate-50 text-slate-700">⚡ Einteilen</button>
+            <button onclick="switchTab('export')" class="${btn} bg-white border border-slate-300 hover:bg-slate-50 text-slate-700">Export</button>
+          </div>
+
+          <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            ${card('Messdiener', state.messdiener.length, `${seniorsCount} Leiter · ${juniorsCount} Kinder`, 'text-slate-900')}
+            ${card('Kommende Gottesdienste', upcoming.length, `${state.gottesdienste.length} insgesamt geplant`, 'text-slate-900')}
+            ${card('Vollständig eingeteilt', upcoming.length ? `${okCount} / ${upcoming.length}` : '–', 'unter den kommenden', 'text-emerald-600')}
+            ${card('Handlungsbedarf', problems.length, problems.length ? 'ohne oder mit zu wenig Einteilung' : 'alles im grünen Bereich', problems.length ? 'text-rose-600' : 'text-emerald-600')}
+          </div>
+
+          <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div class="lg:col-span-2 space-y-6">
+              <div class="bg-white p-4 sm:p-5 rounded-xl shadow-sm border border-slate-200">
+                <h3 class="text-lg font-bold text-slate-900 mb-2">Nächste Gottesdienste</h3>
+                ${upcoming.length ? `<div class="divide-y divide-slate-100">${statuses.slice(0, 6).map(rowFor).join('')}</div>`
+                  : '<p class="text-sm text-slate-500">Keine kommenden Gottesdienste. Lege einen neuen an.</p>'}
+              </div>
+              ${problems.length ? `
+              <div class="bg-white p-4 sm:p-5 rounded-xl shadow-sm border border-amber-200">
+                <h3 class="text-lg font-bold text-slate-900 mb-2">Handlungsbedarf</h3>
+                <div class="divide-y divide-slate-100">${problems.slice(0, 6).map(rowFor).join('')}</div>
+                ${problems.length > 6 ? `<p class="text-xs text-slate-500 mt-2">… und ${problems.length - 6} weitere</p>` : ''}
+              </div>` : ''}
+            </div>
+
+            <div class="bg-white p-4 sm:p-5 rounded-xl shadow-sm border border-slate-200 self-start">
+              <h3 class="text-lg font-bold text-slate-900">Einsätze pro Mini</h3>
+              <p class="text-xs text-slate-500 mb-3">in den kommenden Gottesdiensten · <span class="text-purple-600">Leiter</span> / <span class="text-brand-600">Kinder</span></p>
+              ${ranking.length ? `<div class="space-y-2">${ranking.map(barRow).join('')}</div>` : '<p class="text-sm text-slate-500">Noch keine Messdiener angelegt.</p>'}
+            </div>
+          </div>`;
       }
 
       // ---------- Einteilung anzeigen ----------
