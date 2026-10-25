@@ -518,19 +518,19 @@
       // ---------- Job per RPC auslösen ----------
       // Name der Postgres-Funktion in Supabase, die den Job sofort ausführt
       const JOB_RPC_NAME = 'trigger_gottesdienste_sync';
-      const JOB_BUTTON_LABEL = '▶ Job jetzt ausführen';
+      const JOB_BUTTON_LABEL = '🔄 Gottesdienste aktualisieren';
 
       async function triggerJob() {
-        if (!confirm('Job jetzt ausführen?')) return;
+        if (!confirm('Gottesdienste jetzt aktualisieren?')) return;
         const btn = document.getElementById('job-btn');
         if (btn) { btn.disabled = true; btn.textContent = 'Läuft …'; }
         const { error } = await supabaseClient.rpc(JOB_RPC_NAME);
         if (btn) { btn.disabled = false; btn.textContent = JOB_BUTTON_LABEL; }
         if (error) {
-          alert('Job konnte nicht gestartet werden: ' + error.message);
+          alert('Aktualisierung fehlgeschlagen: ' + error.message);
           return;
         }
-        alert('Job wurde ausgelöst.');
+        alert('Gottesdienste wurden aktualisiert.');
         loadDataFromDB();
       }
 
