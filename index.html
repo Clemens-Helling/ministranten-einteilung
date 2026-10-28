@@ -140,6 +140,7 @@
                   <th class="p-4">Name</th>
                   <th class="p-4">Rolle</th>
                   <th class="p-4">Verfügbare Tage</th>
+                  <th class="p-4">Zusammen mit</th>
                   <th class="p-4 text-right">Aktion</th>
                 </tr>
               </thead>
@@ -242,7 +243,7 @@
 
     <!-- MODAL: MESSDIENER -->
     <div id="modal-messdiener" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm hidden items-center justify-center p-4 z-50">
-      <div class="bg-white rounded-xl max-w-md w-full p-6 shadow-xl space-y-4">
+      <div class="bg-white rounded-xl max-w-md w-full max-h-[90vh] overflow-y-auto p-6 shadow-xl space-y-4">
         <h3 id="m-modal-title" class="text-lg font-bold text-slate-900">Messdiener hinzufügen</h3>
         <div>
           <label class="block text-sm font-medium text-slate-700 mb-1">Vollständiger Name</label>
@@ -266,6 +267,11 @@
             <label class="flex items-center gap-2"><input type="checkbox" value="6" class="rounded text-brand-600" /> Samstag</label>
             <label class="flex items-center gap-2"><input type="checkbox" value="0" class="rounded text-brand-600" /> Sonntag</label>
           </div>
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-slate-700 mb-1">Wird eingeteilt mit</label>
+          <p class="text-xs text-slate-500 mb-2">Bei der automatischen Einteilung kommen diese Minis zusammen in einen Gottesdienst, sofern beide an dem Tag verfügbar sind. Die Zuordnung gilt für beide Seiten.</p>
+          <div id="m-partners" class="border border-slate-200 rounded-lg p-2 max-h-40 overflow-y-auto"></div>
         </div>
         <div class="flex justify-end gap-3 pt-4 border-t border-slate-100">
           <button onclick="closeModals()" class="px-4 py-2 text-sm text-slate-600">Abbrechen</button>
@@ -497,6 +503,7 @@
             <td class="p-4" data-label="Name">${m.name}</td>
             <td class="p-4" data-label="Rolle">${m.type === 'Senior' ? 'Leiter' : 'Kind'}</td>
             <td class="p-4" data-label="Tage">${(m.days || []).map(d => dayNames[d]).join(', ')}</td>
+            <td class="p-4" data-label="Zusammen mit">${partnerNames(m) || '<span class="text-slate-400">–</span>'}</td>
             <td class="p-4 text-right"><button onclick="event.stopPropagation(); deleteMessdiener('${m.id}')" class="text-rose-600 text-xs">Löschen</button></td>
           </tr>
         `).join('');
@@ -814,6 +821,7 @@
         document.getElementById('m-name').value = m ? m.name : '';
         document.getElementById('m-type').value = m ? m.type : 'Senior';
         document.querySelectorAll('#m-days input').forEach(cb => { cb.checked = !!m && (m.days || []).includes(parseInt(cb.value)); });
+        renderPartnerOptions(m);
         document.getElementById('modal-messdiener').classList.remove('hidden');
         document.getElementById('modal-messdiener').classList.add('flex');
       }
@@ -943,21 +951,82 @@
       function openGottesdienstModal() { document.getElementById('g-template').value = ''; document.getElementById('modal-gottesdienst').classList.remove('hidden'); document.getElementById('modal-gottesdienst').classList.add('flex'); }
       function closeModals() { document.querySelectorAll('.fixed').forEach(m => { m.classList.add('hidden'); m.classList.remove('flex'); }); }
 
+      // ---------- Partner (gemeinsam einteilen) ----------
+      function partnerIds(m) { return (m && Array.isArray(m.partners) ? m.partners : []).map(String); }
+
+      function partnerNames(m) {
+        return partnerIds(m)
+          .map(id => state.messdiener.find(x => String(x.id) === id))
+          .filter(Boolean)
+          .map(x => escHtml(x.name))
+          .join(', ');
+      }
+
+      function renderPartnerOptions(current) {
+        const box = document.getElementById('m-partners');
+        const selected = new Set(partnerIds(current));
+        const others = state.messdiener.filter(x => !current || String(x.id) !== String(current.id));
+        box.innerHTML = others.length === 0
+          ? '<p class="text-xs text-slate-400">Noch keine anderen Messdiener vorhanden.</p>'
+          : others.map(x => `
+              <label class="flex items-center gap-2 text-sm py-1">
+                <input type="checkbox" value="${escHtml(x.id)}" ${selected.has(String(x.id)) ? 'checked' : ''} class="rounded text-brand-600" />
+                <span>${escHtml(x.name)}</span>
+                <span class="text-xs text-slate-400">${x.type === 'Senior' ? 'Leiter' : 'Kind'}</span>
+              </label>`).join('');
+      }
+
+      // Partnerschaft ist wechselseitig: bei den betroffenen Personen wird id ergänzt bzw. entfernt
+      async function syncPartnerLinks(personId, oldIds, newIds) {
+        const pid = String(personId);
+        const added = newIds.filter(id => !oldIds.includes(id));
+        const removed = oldIds.filter(id => !newIds.includes(id));
+        for (const otherId of [...added, ...removed]) {
+          const other = state.messdiener.find(x => String(x.id) === otherId);
+          if (!other) continue;
+          const list = partnerIds(other).filter(id => id !== pid);
+          if (added.includes(otherId)) list.push(pid);
+          const { error } = await supabaseClient.from('messdiener').update({ partners: list }).eq('id', other.id);
+          if (error) return error;
+        }
+        return null;
+      }
+
+      function partnerErrorMessage(error) {
+        const hint = /partners/i.test(error.message)
+          ? '\n\nIn Supabase fehlt vermutlich die Spalte "partners" in der Tabelle "messdiener".'
+          : '';
+        return 'Speichern fehlgeschlagen: ' + error.message + hint;
+      }
+
       async function saveMessdiener() {
         const name = document.getElementById('m-name').value.trim();
         const type = document.getElementById('m-type').value;
         const days = Array.from(document.querySelectorAll('#m-days input:checked')).map(cb => parseInt(cb.value));
+        const partners = Array.from(document.querySelectorAll('#m-partners input:checked')).map(cb => cb.value);
         if (!name) return alert('Bitte Namen eingeben.');
 
         if (editingMessdienerId !== null) {
           const id = editingMessdienerId;
-          const { error } = await supabaseClient.from('messdiener').update({ name, type, days }).eq('id', id);
-          if (error) return alert('Speichern fehlgeschlagen: ' + error.message);
-          await syncAssignmentsForMessdiener({ id, name, type, days });
+          const old = state.messdiener.find(x => String(x.id) === String(id));
+          const oldPartners = partnerIds(old);
+          const payload = { name, type, days };
+          // Spalte nur ansprechen, wenn sie genutzt wird (ohne Partner bleibt alles abwärtskompatibel)
+          if (partners.length > 0 || (old && Array.isArray(old.partners))) payload.partners = partners;
+          const { error } = await supabaseClient.from('messdiener').update(payload).eq('id', id);
+          if (error) return alert(partnerErrorMessage(error));
+          const linkError = await syncPartnerLinks(id, oldPartners, partners);
+          if (linkError) alert(partnerErrorMessage(linkError));
+          await syncAssignmentsForMessdiener({ ...(old || {}), id, name, type, days, ...(payload.partners ? { partners } : {}) });
           editingMessdienerId = null;
         } else {
-          const { error } = await supabaseClient.from('messdiener').insert([{ id: Date.now().toString(), name, type, days }]);
-          if (error) return alert('Speichern fehlgeschlagen: ' + error.message);
+          const id = Date.now().toString();
+          const row = { id, name, type, days };
+          if (partners.length > 0) row.partners = partners;
+          const { error } = await supabaseClient.from('messdiener').insert([row]);
+          if (error) return alert(partnerErrorMessage(error));
+          const linkError = await syncPartnerLinks(id, [], partners);
+          if (linkError) alert(partnerErrorMessage(linkError));
         }
         closeModals();
         loadDataFromDB();
@@ -979,6 +1048,10 @@
 
       async function deleteMessdiener(id) {
         await supabaseClient.from('messdiener').delete().eq('id', id);
+        const sid = String(id);
+        for (const other of state.messdiener.filter(x => partnerIds(x).includes(sid))) {
+          await supabaseClient.from('messdiener').update({ partners: partnerIds(other).filter(p => p !== sid) }).eq('id', other.id);
+        }
         loadDataFromDB();
       }
 
@@ -998,6 +1071,41 @@
         await supabaseClient.from('gottesdienste').delete().eq('id', id);
         await supabaseClient.from('assignments').delete().eq('gottesdienst_id', id);
         loadDataFromDB();
+      }
+
+      // Wählt Minis nach Fairness (wenigste Einsätze zuerst). Partner, die am Tag beide verfügbar sind,
+      // bilden eine Gruppe und werden nur gemeinsam eingeteilt – und nur, wenn die ganze Gruppe in die Anzahl passt.
+      function pickWithPartners(available, needSeniors, needJuniors, counts) {
+        const byId = new Map(available.map(m => [String(m.id), m]));
+        const seen = new Set();
+        const groups = [];
+        for (const m of available) {
+          if (seen.has(String(m.id))) continue;
+          const group = [];
+          const stack = [m];
+          seen.add(String(m.id));
+          while (stack.length) {
+            const cur = stack.pop();
+            group.push(cur);
+            for (const pid of partnerIds(cur)) {
+              if (byId.has(pid) && !seen.has(pid)) { seen.add(pid); stack.push(byId.get(pid)); }
+            }
+          }
+          groups.push(group);
+        }
+        const score = (g) => g.reduce((sum, m) => sum + (counts[m.id] || 0), 0) / g.length;
+        groups.sort((a, b) => score(a) - score(b));
+
+        const seniors = [], juniors = [];
+        for (const g of groups) {
+          const gs = g.filter(m => m.type === 'Senior');
+          const gj = g.filter(m => m.type === 'Junior');
+          if (seniors.length + gs.length <= needSeniors && juniors.length + gj.length <= needJuniors) {
+            seniors.push(...gs);
+            juniors.push(...gj);
+          }
+        }
+        return { seniors, juniors };
       }
 
       async function runAutoAssign() {
@@ -1024,10 +1132,14 @@
           const needJuniors = tpl ? tpl.juniors : g.juniors;
           const useAll = allMinis || (tpl && tpl.allMinis);
 
-          let chosenSeniors = useAll ? seniors : seniors.slice(0, needSeniors);
+          let chosenSeniors, chosenJuniors;
+          if (useAll) {
+            chosenSeniors = seniors;
+            chosenJuniors = juniors;
+          } else {
+            ({ seniors: chosenSeniors, juniors: chosenJuniors } = pickWithPartners(available, needSeniors, needJuniors, counts));
+          }
           chosenSeniors.forEach(s => counts[s.id]++);
-
-          let chosenJuniors = useAll ? juniors : juniors.slice(0, needJuniors);
           chosenJuniors.forEach(j => counts[j.id]++);
 
           state.assignments[g.id] = { seniors: chosenSeniors, juniors: chosenJuniors };
