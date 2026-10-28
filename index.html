@@ -600,7 +600,10 @@
         const range = (a) => a.von === a.bis ? formatDateShort(a.von) : `${formatDateShort(a.von)} – ${formatDateShort(a.bis)}`;
         return `<div class="divide-y divide-slate-100">${upcoming.slice(0, 8).map(({ a, m }) => `
             <div class="py-2 text-sm flex justify-between gap-3">
-              <span class="text-slate-800 truncate">${escHtml(m.name)}</span>
+              <span class="min-w-0">
+                <span class="block text-slate-800 truncate">${escHtml(m.name)}</span>
+                ${a.grund ? `<span class="block text-xs text-slate-500 truncate">${escHtml(a.grund)}</span>` : ''}
+              </span>
               <span class="text-slate-500 whitespace-nowrap">${range(a)}</span>
             </div>`).join('')}</div>
           ${upcoming.length > 8 ? `<p class="text-xs text-slate-500 mt-2">… und ${upcoming.length - 8} weitere</p>` : ''}`;
@@ -776,13 +779,14 @@
           document.getElementById('ge-list-' + type).innerHTML = people.length === 0
             ? '<p class="text-xs text-slate-400">Keine Einträge vorhanden.</p>'
             : people.map(m => {
-                const absent = !!date && isAbsent(m, date);
+                const absence = date ? findAbsence(m, date) : null;
+                const absent = !!absence;
                 const available = !date || isAvailableOn(m, date);
                 const checked = selected[type].includes(String(m.id)) ? 'checked' : '';
                 return `<label class="flex items-center gap-2 text-sm py-1">
                   <input type="checkbox" value="${escHtml(m.id)}" ${checked} onchange="updateEditCounters()" class="rounded text-brand-600" />
                   <span class="${available ? 'text-slate-800' : 'text-slate-400'}">${escHtml(m.name)}</span>
-                  ${available ? '' : `<span class="text-xs text-amber-600">(${absent ? 'abwesend' : 'an diesem Tag nicht verfügbar'})</span>`}
+                  ${available ? '' : `<span class="text-xs text-amber-600">(${absent ? 'abwesend' + (absence.grund ? ': ' + escHtml(absence.grund) : '') : 'an diesem Tag nicht verfügbar'})</span>`}
                 </label>`;
               }).join('');
         });
@@ -1009,10 +1013,11 @@
       function closeModals() { document.querySelectorAll('.fixed').forEach(m => { m.classList.add('hidden'); m.classList.remove('flex'); }); }
 
       // ---------- Abwesenheiten ----------
-      function isAbsent(m, dateStr) {
+      function findAbsence(m, dateStr) {
         const id = String(m.id);
-        return (state.absences || []).some(a => String(a.messdiener_id) === id && a.von <= dateStr && dateStr <= a.bis);
+        return (state.absences || []).find(a => String(a.messdiener_id) === id && a.von <= dateStr && dateStr <= a.bis);
       }
+      function isAbsent(m, dateStr) { return !!findAbsence(m, dateStr); }
 
       // verfügbar = Wochentag passt und keine eingetragene Abwesenheit
       function isAvailableOn(m, dateStr) {

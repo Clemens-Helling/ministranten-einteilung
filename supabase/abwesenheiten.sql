@@ -12,6 +12,9 @@ create table if not exists public.abwesenheiten (
   created_at timestamptz not null default now(),
   constraint abwesenheit_zeitraum check (bis >= von)
 );
+-- Begründung (Pflichtangabe über die Abwesenheits-Seite; ältere Einträge ohne Grund bleiben gültig)
+alter table public.abwesenheiten add column if not exists grund text;
+
 create index if not exists abwesenheiten_mini_idx on public.abwesenheiten (messdiener_id, von);
 
 create table if not exists public.mini_pins (
@@ -101,14 +104,15 @@ begin
   status := public._mini_pin_check(p_id, p_pin);
   if status <> 'ok' then return jsonb_build_object('ok', false, 'error', status); end if;
   return jsonb_build_object('ok', true, 'abwesenheiten', (
-    select coalesce(jsonb_agg(jsonb_build_object('id', a.id, 'von', a.von, 'bis', a.bis) order by a.von), '[]'::jsonb)
+    select coalesce(jsonb_agg(jsonb_build_object('id', a.id, 'von', a.von, 'bis', a.bis, 'grund', a.grund) order by a.von), '[]'::jsonb)
       from public.abwesenheiten a
      where a.messdiener_id = p_id and a.bis >= current_date));
 end;
 $$;
 
--- Abwesenheit eintragen
-create or replace function public.absence_add(p_id text, p_pin text, p_von date, p_bis date)
+-- Abwesenheit eintragen (Begründung ist Pflicht, max. 100 Zeichen)
+drop function if exists public.absence_add(text, text, date, date);
+create or replace function public.absence_add(p_id text, p_pin text, p_von date, p_bis date, p_grund text)
 returns jsonb
 language plpgsql
 security definer
@@ -125,11 +129,15 @@ begin
   if p_bis < current_date or p_bis - p_von > 366 then
     return jsonb_build_object('ok', false, 'error', 'dates');
   end if;
+  p_grund := nullif(trim(coalesce(p_grund, '')), '');
+  if p_grund is null or char_length(p_grund) > 100 then
+    return jsonb_build_object('ok', false, 'error', 'grund');
+  end if;
   if (select count(*) from public.abwesenheiten where messdiener_id = p_id and bis >= current_date) >= 50 then
     return jsonb_build_object('ok', false, 'error', 'limit');
   end if;
 
-  insert into public.abwesenheiten (messdiener_id, von, bis) values (p_id, p_von, p_bis);
+  insert into public.abwesenheiten (messdiener_id, von, bis, grund) values (p_id, p_von, p_bis, p_grund);
   return public.absence_get(p_id, p_pin);
 end;
 $$;
@@ -152,9 +160,9 @@ $$;
 
 revoke all on function public.absence_names() from public;
 revoke all on function public.absence_get(text, text) from public;
-revoke all on function public.absence_add(text, text, date, date) from public;
+revoke all on function public.absence_add(text, text, date, date, text) from public;
 revoke all on function public.absence_delete(text, text, bigint) from public;
 grant execute on function public.absence_names() to anon, authenticated;
 grant execute on function public.absence_get(text, text) to anon, authenticated;
-grant execute on function public.absence_add(text, text, date, date) to anon, authenticated;
+grant execute on function public.absence_add(text, text, date, date, text) to anon, authenticated;
 grant execute on function public.absence_delete(text, text, bigint) to anon, authenticated;

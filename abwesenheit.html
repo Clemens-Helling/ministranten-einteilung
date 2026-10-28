@@ -61,7 +61,17 @@
               <input id="bis" type="date" required class="w-full border border-slate-300 rounded-lg px-3 py-2.5 text-base focus:ring-2 focus:ring-brand-500 focus:outline-none" />
             </div>
           </div>
-          <p class="text-xs text-slate-500">Nur ein Tag? Dann wähle zweimal dasselbe Datum.</p>
+          <p class="text-xs text-slate-500 -mt-2">Nur ein Tag? Dann wähle zweimal dasselbe Datum.</p>
+          <div>
+            <label for="grund" class="block text-sm font-medium text-slate-700 mb-1">Grund</label>
+            <input id="grund" type="text" required maxlength="100" list="grund-vorschlaege" autocomplete="off" placeholder="z. B. Urlaub, Schule, Familie"
+              class="w-full border border-slate-300 rounded-lg px-3 py-2.5 text-base focus:ring-2 focus:ring-brand-500 focus:outline-none" />
+            <datalist id="grund-vorschlaege">
+              <option value="Urlaub"></option><option value="Ferien"></option><option value="Schule / Prüfung"></option>
+              <option value="Familie"></option><option value="Krank"></option><option value="Sonstiges"></option>
+            </datalist>
+            <p class="text-xs text-slate-500 mt-1">Bitte kurz und allgemein, ohne Einzelheiten zu Krankheiten. Die Leiter sehen den Grund.</p>
+          </div>
           <button id="add-btn" type="submit" class="w-full bg-brand-600 hover:bg-brand-700 disabled:opacity-60 text-white py-2.5 rounded-lg font-medium transition">Eintragen</button>
         </form>
 
@@ -96,6 +106,7 @@
           wrong: "Die PIN stimmt nicht.",
           locked: "Zu viele Fehlversuche. Bitte versuche es in 15 Minuten noch einmal.",
           nopin: "Für dich ist noch keine PIN hinterlegt. Frag bitte einen Leiter.",
+          grund: "Bitte gib einen kurzen Grund an (höchstens 100 Zeichen).",
           dates: "Bitte prüfe die Daten: „Bis“ darf nicht vor „Von“ liegen und muss in der Zukunft enden.",
           limit: "Du hast schon sehr viele Einträge. Lösche alte oder melde dich bei den Leitern.",
         })[code] || "Das hat leider nicht geklappt. Bitte versuche es später noch einmal.";
@@ -155,6 +166,12 @@
           const text = document.createElement("span");
           text.className = "text-sm text-slate-800";
           text.textContent = a.von === a.bis ? formatDate(a.von) : `${formatDate(a.von)} – ${formatDate(a.bis)}`;
+          if (a.grund) {
+            const reason = document.createElement("span");
+            reason.className = "block text-xs text-slate-500";
+            reason.textContent = a.grund;
+            text.appendChild(reason);
+          }
           const btn = document.createElement("button");
           btn.type = "button";
           btn.className = "text-sm text-rose-600 hover:text-rose-800 shrink-0";
@@ -171,7 +188,7 @@
         $("who").textContent = session.name;
         const t = todayIso();
         $("von").min = t; $("bis").min = t;
-        $("von").value = ""; $("bis").value = "";
+        $("von").value = ""; $("bis").value = ""; $("grund").value = "";
         renderList(result.abwesenheiten || []);
       }
 
@@ -218,15 +235,16 @@
         e.preventDefault();
         if (!session) return;
         showMessage("");
-        const von = $("von").value, bis = $("bis").value;
+        const von = $("von").value, bis = $("bis").value, grund = $("grund").value.trim();
         if (!von || !bis || bis < von) return showMessage(errorText("dates"), "error");
+        if (!grund) return showMessage(errorText("grund"), "error");
         const btn = $("add-btn");
         btn.disabled = true;
-        const { data, error } = await sb.rpc("absence_add", { p_id: session.id, p_pin: session.pin, p_von: von, p_bis: bis });
+        const { data, error } = await sb.rpc("absence_add", { p_id: session.id, p_pin: session.pin, p_von: von, p_bis: bis, p_grund: grund });
         btn.disabled = false;
         if (error || !data) return showMessage(errorText(), "error");
         if (!data.ok) return showMessage(errorText(data.error), "error");
-        $("von").value = ""; $("bis").value = "";
+        $("von").value = ""; $("bis").value = ""; $("grund").value = "";
         renderList(data.abwesenheiten);
         showMessage("Gespeichert. Danke für die Info!", "ok");
       });
