@@ -131,7 +131,17 @@
         <section id="tab-messdiener" class="hidden space-y-6">
           <div class="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3">
             <h2 class="text-xl font-bold text-slate-900">Messdiener-Verwaltung</h2>
-            <button onclick="openMessdienerModal()" class="bg-brand-600 hover:bg-brand-700 text-white px-4 py-2.5 rounded-lg text-sm font-medium transition shadow-sm">+ Messdiener hinzufügen</button>
+            <div class="flex flex-wrap gap-2">
+              <button onclick="generateMissingPins()" class="bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 px-4 py-2.5 rounded-lg text-sm font-medium transition">🔑 Fehlende PINs erzeugen</button>
+              <button onclick="openMessdienerModal()" class="bg-brand-600 hover:bg-brand-700 text-white px-4 py-2.5 rounded-lg text-sm font-medium transition shadow-sm">+ Messdiener hinzufügen</button>
+            </div>
+          </div>
+          <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-4 flex flex-col sm:flex-row sm:items-center gap-3">
+            <div class="min-w-0 flex-1">
+              <p class="text-sm font-medium text-slate-900">Abwesenheits-Seite für die Minis</p>
+              <p id="absence-url" class="text-xs text-slate-500 break-all"></p>
+            </div>
+            <button onclick="copyAbsenceUrl()" class="bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 px-4 py-2 rounded-lg text-sm font-medium transition">Link kopieren</button>
           </div>
           <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-x-auto">
             <table class="responsive-table w-full text-left border-collapse">
@@ -141,6 +151,7 @@
                   <th class="p-4">Rolle</th>
                   <th class="p-4">Verfügbare Tage</th>
                   <th class="p-4">Zusammen mit</th>
+                  <th class="p-4">PIN</th>
                   <th class="p-4 text-right">Aktion</th>
                 </tr>
               </thead>
@@ -277,6 +288,14 @@
           </div>
           <div id="m-partner-suggestions" class="hidden mt-1 border border-slate-200 rounded-lg bg-white shadow-sm max-h-40 overflow-y-auto"></div>
         </div>
+        <div>
+          <label class="block text-sm font-medium text-slate-700 mb-1">PIN für die Abwesenheits-Seite</label>
+          <div class="flex gap-2">
+            <input type="text" id="m-pin" inputmode="numeric" maxlength="4" placeholder="4 Ziffern" class="w-32 border border-slate-300 rounded-lg px-3 py-2 text-sm font-mono" />
+            <button type="button" onclick="document.getElementById('m-pin').value = randomPin()" class="px-3 py-2 text-sm border border-slate-300 rounded-lg text-slate-700 hover:bg-slate-50">Neu erzeugen</button>
+          </div>
+          <p class="text-xs text-slate-500 mt-1">Diese PIN teilst du dem Mini mit. Leer lassen: eine vorhandene PIN bleibt, sonst wird automatisch eine erzeugt.</p>
+        </div>
         <div class="flex justify-end gap-3 pt-4 border-t border-slate-100">
           <button onclick="closeModals()" class="px-4 py-2 text-sm text-slate-600">Abbrechen</button>
           <button onclick="saveMessdiener()" class="px-4 py-2 text-sm text-white bg-brand-600 rounded-lg">Speichern</button>
@@ -384,7 +403,7 @@
       const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndrZWNjbnFxdXF3c3piamhkZnFvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTI3NjYwNzcsImV4cCI6MjEwODM0MjA3N30.FhbXCHfHV0H0vBp5GVF9J-vADXJ65eJ61-OMjQ2-PpY";
 
       let supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-      let state = { messdiener: [], gottesdienste: [], assignments: {} };
+      let state = { messdiener: [], gottesdienste: [], assignments: {}, absences: [], pins: {} };
       let activeUserId = null;
 
       function showLoginError(msg) {
@@ -437,7 +456,7 @@
           appContent.classList.add("hidden");
           appContent.classList.remove("flex");
           loginScreen.classList.remove("hidden");
-          state = { messdiener: [], gottesdienste: [], assignments: {} };
+          state = { messdiener: [], gottesdienste: [], assignments: {}, absences: [], pins: {} };
         }
       });
 
@@ -472,7 +491,13 @@
         const { data: mData } = await supabaseClient.from("messdiener").select("*");
         const { data: gData } = await supabaseClient.from("gottesdienste").select("*");
         const { data: aData } = await supabaseClient.from("assignments").select("*");
+        // Optional: Tabellen der Abwesenheits-Funktion (fehlen sie noch, bleibt alles leer)
+        const { data: abData } = await supabaseClient.from("abwesenheiten").select("*");
+        const { data: pinData } = await supabaseClient.from("mini_pins").select("messdiener_id, pin");
 
+        state.absences = abData || [];
+        state.pins = {};
+        (pinData || []).forEach(r => { state.pins[String(r.messdiener_id)] = r.pin; });
         if (mData) state.messdiener = mData;
         if (gData) state.gottesdienste = sortGottesdiensteByDate(gData);
         
@@ -501,6 +526,8 @@
 
       function renderAll() {
         renderDashboard();
+        const urlEl = document.getElementById('absence-url');
+        if (urlEl) urlEl.textContent = absenceUrl();
 
         document.getElementById('messdiener-table-body').innerHTML = state.messdiener.map(m => `
           <tr class="hover:bg-slate-50 transition cursor-pointer" onclick="openMessdienerModal('${m.id}')" title="Zum Bearbeiten klicken">
@@ -508,6 +535,7 @@
             <td class="p-4" data-label="Rolle">${m.type === 'Senior' ? 'Leiter' : 'Kind'}</td>
             <td class="p-4" data-label="Tage">${(m.days || []).map(d => dayNames[d]).join(', ')}</td>
             <td class="p-4" data-label="Zusammen mit">${partnerNames(m) || '<span class="text-slate-400">–</span>'}</td>
+            <td class="p-4 font-mono" data-label="PIN">${escHtml(state.pins[String(m.id)]) || '<span class="text-slate-400">–</span>'}</td>
             <td class="p-4 text-right"><button onclick="event.stopPropagation(); deleteMessdiener('${m.id}')" class="text-rose-600 text-xs">Löschen</button></td>
           </tr>
         `).join('');
@@ -559,6 +587,23 @@
         if (isEveryoneAssigned(g)) return 'ok';
         if ((a.seniors || []).length < g.seniors || (a.juniors || []).length < g.juniors) return 'unterbesetzt';
         return 'ok';
+      }
+
+      function absenceCardHtml() {
+        const today = todayString();
+        const upcoming = (state.absences || [])
+          .filter(a => a.bis >= today)
+          .map(a => ({ a, m: state.messdiener.find(x => String(x.id) === String(a.messdiener_id)) }))
+          .filter(x => x.m)
+          .sort((x, y) => x.a.von.localeCompare(y.a.von));
+        if (upcoming.length === 0) return '<p class="text-sm text-slate-500">Keine kommenden Abwesenheiten eingetragen.</p>';
+        const range = (a) => a.von === a.bis ? formatDateShort(a.von) : `${formatDateShort(a.von)} – ${formatDateShort(a.bis)}`;
+        return `<div class="divide-y divide-slate-100">${upcoming.slice(0, 8).map(({ a, m }) => `
+            <div class="py-2 text-sm flex justify-between gap-3">
+              <span class="text-slate-800 truncate">${escHtml(m.name)}</span>
+              <span class="text-slate-500 whitespace-nowrap">${range(a)}</span>
+            </div>`).join('')}</div>
+          ${upcoming.length > 8 ? `<p class="text-xs text-slate-500 mt-2">… und ${upcoming.length - 8} weitere</p>` : ''}`;
       }
 
       function renderDashboard() {
@@ -649,10 +694,16 @@
               </div>` : ''}
             </div>
 
-            <div class="bg-white p-4 sm:p-5 rounded-xl shadow-sm border border-slate-200 self-start">
+            <div class="space-y-6 self-start">
+            <div class="bg-white p-4 sm:p-5 rounded-xl shadow-sm border border-slate-200">
               <h3 class="text-lg font-bold text-slate-900">Einsätze pro Mini</h3>
               <p class="text-xs text-slate-500 mb-3">in den kommenden Gottesdiensten · <span class="text-purple-600">Leiter</span> / <span class="text-brand-600">Kinder</span></p>
               ${ranking.length ? `<div class="space-y-2">${ranking.map(barRow).join('')}</div>` : '<p class="text-sm text-slate-500">Noch keine Messdiener angelegt.</p>'}
+            </div>
+              <div class="bg-white p-4 sm:p-5 rounded-xl shadow-sm border border-slate-200">
+                <h3 class="text-lg font-bold text-slate-900 mb-2">Abwesenheiten</h3>
+                ${absenceCardHtml()}
+              </div>
             </div>
           </div>`;
       }
@@ -725,12 +776,13 @@
           document.getElementById('ge-list-' + type).innerHTML = people.length === 0
             ? '<p class="text-xs text-slate-400">Keine Einträge vorhanden.</p>'
             : people.map(m => {
-                const available = dow === null || (m.days || []).includes(dow);
+                const absent = !!date && isAbsent(m, date);
+                const available = !date || isAvailableOn(m, date);
                 const checked = selected[type].includes(String(m.id)) ? 'checked' : '';
                 return `<label class="flex items-center gap-2 text-sm py-1">
                   <input type="checkbox" value="${escHtml(m.id)}" ${checked} onchange="updateEditCounters()" class="rounded text-brand-600" />
                   <span class="${available ? 'text-slate-800' : 'text-slate-400'}">${escHtml(m.name)}</span>
-                  ${available ? '' : '<span class="text-xs text-amber-600">(an diesem Tag nicht verfügbar)</span>'}
+                  ${available ? '' : `<span class="text-xs text-amber-600">(${absent ? 'abwesend' : 'an diesem Tag nicht verfügbar'})</span>`}
                 </label>`;
               }).join('');
         });
@@ -757,7 +809,7 @@
         const date = document.getElementById('ge-date').value;
         const dow = date ? new Date(`${date}T12:00:00`).getDay() : null;
         const ids = (type) => state.messdiener
-          .filter(m => m.type === type && (dow === null || (m.days || []).includes(dow)))
+          .filter(m => m.type === type && (!date || isAvailableOn(m, date)))
           .map(m => String(m.id));
         renderEditAssignees({ Senior: ids('Senior'), Junior: ids('Junior') });
       }
@@ -826,6 +878,7 @@
         document.getElementById('m-type').value = m ? m.type : 'Senior';
         document.querySelectorAll('#m-days input').forEach(cb => { cb.checked = !!m && (m.days || []).includes(parseInt(cb.value)); });
         renderPartnerOptions(m);
+        document.getElementById('m-pin').value = m ? (state.pins[String(m.id)] || '') : '';
         document.getElementById('modal-messdiener').classList.remove('hidden');
         document.getElementById('modal-messdiener').classList.add('flex');
       }
@@ -954,6 +1007,45 @@
 
       function openGottesdienstModal() { document.getElementById('g-template').value = ''; document.getElementById('modal-gottesdienst').classList.remove('hidden'); document.getElementById('modal-gottesdienst').classList.add('flex'); }
       function closeModals() { document.querySelectorAll('.fixed').forEach(m => { m.classList.add('hidden'); m.classList.remove('flex'); }); }
+
+      // ---------- Abwesenheiten ----------
+      function isAbsent(m, dateStr) {
+        const id = String(m.id);
+        return (state.absences || []).some(a => String(a.messdiener_id) === id && a.von <= dateStr && dateStr <= a.bis);
+      }
+
+      // verfügbar = Wochentag passt und keine eingetragene Abwesenheit
+      function isAvailableOn(m, dateStr) {
+        const dow = new Date(`${dateStr}T12:00:00`).getDay();
+        return (m.days || []).includes(dow) && !isAbsent(m, dateStr);
+      }
+
+      function randomPin() {
+        return String(crypto.getRandomValues(new Uint32Array(1))[0] % 10000).padStart(4, '0');
+      }
+
+      function absenceUrl() {
+        const u = new URL('abwesenheit.html', location.href);
+        u.search = ''; u.hash = '';
+        return u.href;
+      }
+
+      async function copyAbsenceUrl() {
+        const url = absenceUrl();
+        try { await navigator.clipboard.writeText(url); alert('Link kopiert:\n' + url); }
+        catch (e) { prompt('Link zum Kopieren:', url); }
+      }
+
+      async function generateMissingPins() {
+        const missing = state.messdiener.filter(m => !state.pins[String(m.id)]);
+        if (missing.length === 0) return alert('Alle Minis haben bereits eine PIN.');
+        if (!confirm(`Für ${missing.length} Mini(s) ohne PIN jetzt eine PIN erzeugen?`)) return;
+        const rows = missing.map(m => ({ messdiener_id: String(m.id), pin: randomPin(), failed_attempts: 0, locked_until: null }));
+        const { error } = await supabaseClient.from('mini_pins').upsert(rows);
+        if (error) return alert('PINs konnten nicht gespeichert werden: ' + error.message + '\n\nHast du das SQL aus supabase/abwesenheiten.sql in Supabase ausgeführt?');
+        await loadDataFromDB();
+        alert(`${rows.length} PIN(s) erzeugt. Du siehst sie in der Spalte „PIN".`);
+      }
 
       // ---------- Partner (gemeinsam einteilen) ----------
       function partnerIds(m) { return (m && Array.isArray(m.partners) ? m.partners : []).map(String); }
@@ -1099,7 +1191,10 @@
         const type = document.getElementById('m-type').value;
         const days = Array.from(document.querySelectorAll('#m-days input:checked')).map(cb => parseInt(cb.value));
         const partners = [...partnerSelection];
+        const pinInput = document.getElementById('m-pin').value.trim();
         if (!name) return alert('Bitte Namen eingeben.');
+        if (pinInput && !/^\d{4}$/.test(pinInput)) return alert('Die PIN muss aus genau 4 Ziffern bestehen.');
+        let savedId;
 
         if (editingMessdienerId !== null) {
           const id = editingMessdienerId;
@@ -1113,6 +1208,7 @@
           const linkError = await syncPartnerLinks(id, oldPartners, partners);
           if (linkError) alert(partnerErrorMessage(linkError));
           await syncAssignmentsForMessdiener({ ...(old || {}), id, name, type, days, ...(payload.partners ? { partners } : {}) });
+          savedId = id;
           editingMessdienerId = null;
         } else {
           const id = Date.now().toString();
@@ -1122,6 +1218,16 @@
           if (error) return alert(partnerErrorMessage(error));
           const linkError = await syncPartnerLinks(id, [], partners);
           if (linkError) alert(partnerErrorMessage(linkError));
+          savedId = id;
+        }
+
+        // PIN speichern (leer = vorhandene behalten, sonst neu erzeugen)
+        const existingPin = state.pins[String(savedId)];
+        const pin = pinInput || existingPin || randomPin();
+        if (pin !== existingPin) {
+          const { error: pinError } = await supabaseClient.from('mini_pins')
+            .upsert([{ messdiener_id: String(savedId), pin, failed_attempts: 0, locked_until: null }]);
+          if (pinError) alert('Der Mini wurde gespeichert, die PIN aber nicht: ' + pinError.message + '\n\nHast du das SQL aus supabase/abwesenheiten.sql in Supabase ausgeführt?');
         }
         closeModals();
         loadDataFromDB();
@@ -1144,6 +1250,8 @@
       async function deleteMessdiener(id) {
         await supabaseClient.from('messdiener').delete().eq('id', id);
         const sid = String(id);
+        await supabaseClient.from('abwesenheiten').delete().eq('messdiener_id', sid);
+        await supabaseClient.from('mini_pins').delete().eq('messdiener_id', sid);
         for (const other of state.messdiener.filter(x => partnerIds(x).includes(sid))) {
           await supabaseClient.from('messdiener').update({ partners: partnerIds(other).filter(p => p !== sid) }).eq('id', other.id);
         }
@@ -1204,6 +1312,7 @@
       }
 
       async function runAutoAssign() {
+        await loadDataFromDB(); // aktuelle Abwesenheiten der Minis berücksichtigen
         let counts = {};
         state.messdiener.forEach(m => counts[m.id] = 0);
         const allMinis = document.getElementById('assign-all-minis').checked;
@@ -1216,7 +1325,7 @@
 
         for (const g of targetGottesdienste) {
           const dayOfWeek = new Date(`${g.date}T12:00:00`).getDay();
-          const available = state.messdiener.filter(m => (m.days || []).includes(dayOfWeek));
+          const available = state.messdiener.filter(m => isAvailableOn(m, g.date));
           
           const seniors = available.filter(m => m.type === 'Senior').sort((a,b) => counts[a.id] - counts[b.id]);
           const juniors = available.filter(m => m.type === 'Junior').sort((a,b) => counts[a.id] - counts[b.id]);
@@ -1283,7 +1392,7 @@
         const people = [...(a.seniors || []), ...(a.juniors || [])];
         if (people.length === 0) return false;
         const dow = new Date(`${g.date}T12:00:00`).getDay();
-        const available = state.messdiener.filter(m => (m.days || []).includes(dow));
+        const available = state.messdiener.filter(m => isAvailableOn(m, g.date));
         const assignedIds = new Set(people.map(p => String(p.id)));
         return available.length > 0 && available.every(m => assignedIds.has(String(m.id)));
       }
