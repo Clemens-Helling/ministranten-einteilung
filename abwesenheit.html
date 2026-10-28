@@ -35,6 +35,10 @@
             placeholder="4 Ziffern" class="w-full border border-slate-300 rounded-lg px-3 py-2.5 text-base tracking-widest focus:ring-2 focus:ring-brand-500 focus:outline-none" />
           <p class="text-xs text-slate-500 mt-1">Die PIN hast du von den Leitern bekommen. PIN vergessen? Frag einfach nach.</p>
         </div>
+        <label class="flex items-start gap-2 text-sm text-slate-600">
+          <input id="remember" type="checkbox" checked class="mt-0.5 rounded text-brand-600" />
+          <span>Auf diesem Gerät merken <span class="block text-xs text-slate-400">Dann musst du dich nächstes Mal nicht neu anmelden. Nicht ankreuzen bei fremden oder gemeinsam genutzten Geräten.</span></span>
+        </label>
         <button id="login-btn" type="submit" class="w-full bg-brand-600 hover:bg-brand-700 disabled:opacity-60 text-white py-2.5 rounded-lg font-medium transition">Weiter</button>
       </form>
 
@@ -108,8 +112,9 @@
         return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
       }
 
-      function remember(key, value) { try { localStorage.setItem(key, value); } catch (e) {} }
+      function store(key, value) { try { localStorage.setItem(key, value); } catch (e) {} }
       function recall(key) { try { return localStorage.getItem(key); } catch (e) { return null; } }
+      function forget(key) { try { localStorage.removeItem(key); } catch (e) {} }
 
       async function loadNames() {
         const select = $("name-select");
@@ -172,10 +177,31 @@
 
       function leaveApp() {
         session = null;
+        forget("abwesenheit-pin");
         $("pin-input").value = "";
         $("app").classList.add("hidden");
         $("login-form").classList.remove("hidden");
         showMessage("");
+      }
+
+      // auto = gespeicherte Zugangsdaten beim Öffnen der Seite
+      async function login(id, pin, remember, auto) {
+        const btn = $("login-btn");
+        btn.disabled = true;
+        const { data, error } = await sb.rpc("absence_get", { p_id: id, p_pin: pin });
+        btn.disabled = false;
+        if (error || !data) { showMessage(errorText(), "error"); return false; }
+        if (!data.ok) {
+          forget("abwesenheit-pin");
+          $("pin-input").value = "";
+          showMessage(auto && data.error === "wrong" ? "Deine gespeicherte PIN stimmt nicht mehr. Bitte gib sie neu ein." : errorText(data.error), "error");
+          return false;
+        }
+        remember ? (store("abwesenheit-mini-id", id), store("abwesenheit-pin", pin)) : (store("abwesenheit-mini-id", id), forget("abwesenheit-pin"));
+        const opt = Array.from($("name-select").options).find((o) => o.value === id);
+        session = { id, pin, name: opt ? opt.textContent : "" };
+        enterApp(data);
+        return true;
       }
 
       $("login-form").addEventListener("submit", async (e) => {
@@ -185,15 +211,7 @@
         const pin = $("pin-input").value.trim();
         if (!id) return showMessage("Bitte wähle deinen Namen aus.", "error");
         if (!/^\d{4}$/.test(pin)) return showMessage("Die PIN besteht aus 4 Ziffern.", "error");
-        const btn = $("login-btn");
-        btn.disabled = true;
-        const { data, error } = await sb.rpc("absence_get", { p_id: id, p_pin: pin });
-        btn.disabled = false;
-        if (error || !data) return showMessage(errorText(), "error");
-        if (!data.ok) { $("pin-input").value = ""; return showMessage(errorText(data.error), "error"); }
-        remember("abwesenheit-mini-id", id);
-        session = { id, pin, name: $("name-select").selectedOptions[0].textContent };
-        enterApp(data);
+        await login(id, pin, $("remember").checked, false);
       });
 
       $("add-form").addEventListener("submit", async (e) => {
@@ -230,7 +248,11 @@
       });
 
       $("logout-btn").addEventListener("click", leaveApp);
-      loadNames();
+      (async () => {
+        await loadNames();
+        const id = recall("abwesenheit-mini-id"), pin = recall("abwesenheit-pin");
+        if (id && pin && /^\d{4}$/.test(pin) && $("name-select").value === id) await login(id, pin, true, true);
+      })();
     </script>
   </body>
 </html>
