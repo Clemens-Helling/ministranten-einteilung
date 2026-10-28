@@ -271,7 +271,11 @@
         <div>
           <label class="block text-sm font-medium text-slate-700 mb-1">Wird eingeteilt mit</label>
           <p class="text-xs text-slate-500 mb-2">Bei der automatischen Einteilung kommen diese Minis zusammen in einen Gottesdienst, sofern beide an dem Tag verfügbar sind. Die Zuordnung gilt für beide Seiten.</p>
-          <div id="m-partners" class="border border-slate-200 rounded-lg p-2 max-h-40 overflow-y-auto"></div>
+          <div id="m-partners" class="border border-slate-300 rounded-lg p-2 focus-within:ring-2 focus-within:ring-brand-500">
+            <div id="m-partner-chips" class="flex flex-wrap gap-1.5"></div>
+            <input type="text" id="m-partner-input" autocomplete="off" placeholder="Name eingeben, um Minis zu suchen …" class="w-full mt-1 px-1 py-1 text-sm focus:outline-none" />
+          </div>
+          <div id="m-partner-suggestions" class="hidden mt-1 border border-slate-200 rounded-lg bg-white shadow-sm max-h-40 overflow-y-auto"></div>
         </div>
         <div class="flex justify-end gap-3 pt-4 border-t border-slate-100">
           <button onclick="closeModals()" class="px-4 py-2 text-sm text-slate-600">Abbrechen</button>
@@ -962,18 +966,109 @@
           .join(', ');
       }
 
+      // Tag-Eingabe mit Suchvorschlägen
+      let partnerSelection = [];
+      let partnerSelfId = null;
+      let partnerHighlight = 0;
+
       function renderPartnerOptions(current) {
-        const box = document.getElementById('m-partners');
-        const selected = new Set(partnerIds(current));
-        const others = state.messdiener.filter(x => !current || String(x.id) !== String(current.id));
-        box.innerHTML = others.length === 0
-          ? '<p class="text-xs text-slate-400">Noch keine anderen Messdiener vorhanden.</p>'
-          : others.map(x => `
-              <label class="flex items-center gap-2 text-sm py-1">
-                <input type="checkbox" value="${escHtml(x.id)}" ${selected.has(String(x.id)) ? 'checked' : ''} class="rounded text-brand-600" />
-                <span>${escHtml(x.name)}</span>
-                <span class="text-xs text-slate-400">${x.type === 'Senior' ? 'Leiter' : 'Kind'}</span>
-              </label>`).join('');
+        partnerSelection = partnerIds(current);
+        partnerSelfId = current ? String(current.id) : null;
+        partnerHighlight = 0;
+        document.getElementById('m-partner-input').value = '';
+        renderPartnerChips();
+        hidePartnerSuggestions();
+      }
+
+      function renderPartnerChips() {
+        document.getElementById('m-partner-chips').innerHTML = partnerSelection.map(id => {
+          const x = state.messdiener.find(m => String(m.id) === id);
+          if (!x) return '';
+          const color = x.type === 'Senior' ? 'bg-purple-100 text-purple-700' : 'bg-brand-100 text-brand-700';
+          return `<span class="inline-flex items-center gap-1 pl-2.5 pr-1 py-0.5 rounded-full text-sm ${color}">
+            ${escHtml(x.name)}
+            <button type="button" data-remove="${escHtml(id)}" class="w-5 h-5 rounded-full hover:bg-black/10 leading-none" aria-label="${escHtml(x.name)} entfernen">×</button>
+          </span>`;
+        }).join('');
+      }
+
+      function normalizeSearch(str) {
+        return String(str || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+      }
+
+      function partnerMatches() {
+        const q = normalizeSearch(document.getElementById('m-partner-input').value.trim());
+        return state.messdiener
+          .filter(x => String(x.id) !== partnerSelfId && !partnerSelection.includes(String(x.id)))
+          .filter(x => !q || normalizeSearch(x.name).includes(q))
+          .sort((a, b) => a.name.localeCompare(b.name, 'de'));
+      }
+
+      function hidePartnerSuggestions() {
+        const box = document.getElementById('m-partner-suggestions');
+        box.classList.add('hidden');
+        box.innerHTML = '';
+      }
+
+      function showPartnerSuggestions() {
+        const box = document.getElementById('m-partner-suggestions');
+        const matches = partnerMatches();
+        const hasQuery = document.getElementById('m-partner-input').value.trim() !== '';
+        if (matches.length === 0) {
+          box.innerHTML = `<p class="px-3 py-2 text-xs text-slate-400">${hasQuery ? 'Kein passender Mini gefunden.' : 'Keine weiteren Minis vorhanden.'}</p>`;
+          box.classList.remove('hidden');
+          return;
+        }
+        partnerHighlight = Math.min(partnerHighlight, matches.length - 1);
+        box.innerHTML = matches.map((x, i) => `
+          <div data-add="${escHtml(x.id)}" class="flex items-center justify-between px-3 py-2 text-sm cursor-pointer ${i === partnerHighlight ? 'bg-brand-50' : 'hover:bg-slate-50'}">
+            <span>${escHtml(x.name)}</span>
+            <span class="text-xs text-slate-400">${x.type === 'Senior' ? 'Leiter' : 'Kind'}</span>
+          </div>`).join('');
+        box.classList.remove('hidden');
+      }
+
+      function addPartner(id) {
+        id = String(id);
+        if (!partnerSelection.includes(id)) partnerSelection.push(id);
+        const input = document.getElementById('m-partner-input');
+        input.value = '';
+        partnerHighlight = 0;
+        renderPartnerChips();
+        showPartnerSuggestions();
+        input.focus();
+      }
+
+      function removePartner(id) {
+        partnerSelection = partnerSelection.filter(x => x !== String(id));
+        renderPartnerChips();
+        if (!document.getElementById('m-partner-suggestions').classList.contains('hidden')) showPartnerSuggestions();
+      }
+
+      function initPartnerInput() {
+        const input = document.getElementById('m-partner-input');
+        const sugg = document.getElementById('m-partner-suggestions');
+        input.addEventListener('focus', () => { partnerHighlight = 0; showPartnerSuggestions(); });
+        input.addEventListener('input', () => { partnerHighlight = 0; showPartnerSuggestions(); });
+        input.addEventListener('blur', () => setTimeout(hidePartnerSuggestions, 120));
+        input.addEventListener('keydown', (e) => {
+          const matches = partnerMatches();
+          if (e.key === 'ArrowDown') { e.preventDefault(); partnerHighlight = Math.min(partnerHighlight + 1, Math.max(matches.length - 1, 0)); showPartnerSuggestions(); }
+          else if (e.key === 'ArrowUp') { e.preventDefault(); partnerHighlight = Math.max(partnerHighlight - 1, 0); showPartnerSuggestions(); }
+          else if (e.key === 'Enter') { e.preventDefault(); if (matches[partnerHighlight]) addPartner(matches[partnerHighlight].id); }
+          else if (e.key === 'Escape') { hidePartnerSuggestions(); }
+          else if (e.key === 'Backspace' && input.value === '' && partnerSelection.length) { removePartner(partnerSelection[partnerSelection.length - 1]); }
+        });
+        // mousedown statt click, damit das Eingabefeld seinen Fokus behält
+        sugg.addEventListener('mousedown', (e) => {
+          const row = e.target.closest('[data-add]');
+          if (row) { e.preventDefault(); addPartner(row.dataset.add); }
+        });
+        document.getElementById('m-partner-chips').addEventListener('click', (e) => {
+          const btn = e.target.closest('[data-remove]');
+          if (btn) removePartner(btn.dataset.remove);
+        });
+        document.getElementById('m-partners').addEventListener('click', () => input.focus());
       }
 
       // Partnerschaft ist wechselseitig: bei den betroffenen Personen wird id ergänzt bzw. entfernt
@@ -1003,7 +1098,7 @@
         const name = document.getElementById('m-name').value.trim();
         const type = document.getElementById('m-type').value;
         const days = Array.from(document.querySelectorAll('#m-days input:checked')).map(cb => parseInt(cb.value));
-        const partners = Array.from(document.querySelectorAll('#m-partners input:checked')).map(cb => cb.value);
+        const partners = [...partnerSelection];
         if (!name) return alert('Bitte Namen eingeben.');
 
         if (editingMessdienerId !== null) {
@@ -1231,6 +1326,7 @@
         window.print();
       }
 
+      initPartnerInput();
       document.getElementById('schedule-start').addEventListener('change', renderScheduleResults);
       document.getElementById('schedule-end').addEventListener('change', renderScheduleResults);
 
