@@ -112,7 +112,8 @@
           <button class="nav-item" data-tab="export" onclick="switchTab('export')"><span data-icon="export"></span>Export</button>
         </nav>
         <div class="mt-auto pt-6 border-t border-white/10">
-          <p id="signed-in-email" class="px-2 text-xs text-slate-400 truncate mb-2"></p>
+          <p id="signed-in-email" class="px-2 text-xs text-slate-400 truncate"></p>
+          <p id="role-label" class="px-2 text-xs text-slate-500 mb-2"></p>
           <button class="nav-item" onclick="signOut()"><span data-icon="logout"></span>Abmelden</button>
         </div>
       </aside>
@@ -153,12 +154,12 @@
                 <h2 class="page-title">Messdiener</h2>
                 <p class="page-sub">Wer dabei ist, an welchen Tagen sie können und mit wem sie zusammen eingeteilt werden.</p>
               </div>
-              <div class="flex flex-wrap gap-2">
+              <div id="admin-actions" class="admin-only flex flex-wrap gap-2">
                 <button onclick="generateMissingPins()" class="btn btn-secondary"><span data-icon="key"></span>Fehlende PINs erzeugen</button>
                 <button onclick="openMessdienerModal()" class="btn btn-primary"><span data-icon="plus"></span>Messdiener hinzufügen</button>
               </div>
             </div>
-            <div class="panel panel-pad flex flex-col sm:flex-row sm:items-center gap-3">
+            <div id="absence-link-card" class="panel panel-pad flex flex-col sm:flex-row sm:items-center gap-3">
               <div class="min-w-0 flex-1">
                 <p class="text-sm font-semibold text-slate-900">Abwesenheits-Seite für die Minis</p>
                 <p id="absence-url" class="text-xs text-slate-500 break-all mt-0.5"></p>
@@ -173,8 +174,8 @@
                     <th>Rolle</th>
                     <th>Verfügbare Tage</th>
                     <th>Zusammen mit</th>
-                    <th>PIN</th>
-                    <th class="text-right"><span class="sr-only">Aktionen</span></th>
+                    <th class="admin-only">PIN</th>
+                    <th class="text-right admin-only"><span class="sr-only">Aktionen</span></th>
                   </tr>
                 </thead>
                 <tbody id="messdiener-table-body"></tbody>
@@ -536,6 +537,26 @@
         await supabaseClient.auth.signOut();
       }
 
+      // Rollen: "admin" darf Messdiener verwalten, "leiter" nur einteilen.
+      // Maßgeblich ist die Datenbank (supabase/rollen.sql); die Oberfläche blendet nur aus.
+      let userRole = 'leiter';
+      function isAdmin() { return userRole === 'admin'; }
+      function applyRole() {
+        document.querySelectorAll('.admin-only').forEach(el => { el.style.display = isAdmin() ? '' : 'none'; });
+        const label = document.getElementById('role-label');
+        if (label) label.textContent = isAdmin() ? 'Admin' : 'Leiter';
+        const abs = document.getElementById('absence-link-card');
+        if (abs) abs.style.display = isAdmin() ? '' : 'none';
+      }
+      async function loadRole() {
+        try {
+          const { data, error } = await supabaseClient.rpc('my_role');
+          // Ohne eingerichtete Rollen-Funktion bleibt alles wie bisher (Admin), sonst wäre man ausgesperrt
+          userRole = error ? 'admin' : (data === 'admin' ? 'admin' : 'leiter');
+        } catch (e) { userRole = 'admin'; }
+        applyRole();
+      }
+
       // Auth Überwachung
       supabaseClient.auth.onAuthStateChange((event, session) => {
         const loginScreen = document.getElementById("login-screen");
@@ -549,10 +570,11 @@
           
           if (activeUserId !== session.user.id) {
             activeUserId = session.user.id;
-            loadDataFromDB();
+            loadRole().then(loadDataFromDB);
           }
         } else {
           activeUserId = null;
+          userRole = 'leiter';
           appContent.classList.add("hidden");
           appContent.classList.remove("flex");
           loginScreen.classList.remove("hidden");
@@ -629,19 +651,22 @@
         if (urlEl) urlEl.textContent = absenceUrl();
 
         const dayOrder = [1, 2, 3, 4, 5, 6, 0];
+        const admin = isAdmin();
         document.getElementById('messdiener-table-body').innerHTML = state.messdiener.map(m => {
           const days = dayOrder.filter(d => (m.days || []).includes(d)).map(d => `<span class="daychip" title="${dayNames[d]}">${weekdayShort[d]}</span>`).join('');
           const pin = state.pins[String(m.id)];
           return `
-          <tr onclick="openMessdienerModal('${m.id}')" title="Zum Bearbeiten klicken">
+          <tr ${admin ? `onclick="openMessdienerModal('${m.id}')" title="Zum Bearbeiten klicken"` : 'style="cursor:default"'}>
             <td data-label="Name" class="font-semibold text-slate-900">${escHtml(m.name)}</td>
             <td data-label="Rolle"><span class="inline-flex items-center gap-2"><span class="dot ${m.type === 'Senior' ? 'dot-senior' : 'dot-junior'}"></span>${m.type === 'Senior' ? 'Leiter' : 'Kind'}</span></td>
             <td data-label="Verfügbar"><span class="inline-flex flex-wrap gap-1">${days || '<span class="text-slate-400">–</span>'}</span></td>
             <td data-label="Zusammen mit">${partnerNames(m) || '<span class="text-slate-400">–</span>'}</td>
-            <td data-label="PIN" class="font-mono tracking-widest">${pin ? escHtml(pin) : '<span class="text-slate-400">–</span>'}</td>
-            <td class="text-right cell-actions"><button onclick="event.stopPropagation(); deleteMessdiener('${m.id}')" class="btn btn-danger btn-sm">Löschen</button></td>
+            <td data-label="PIN" class="font-mono tracking-widest admin-only">${pin ? escHtml(pin) : '<span class="text-slate-400">–</span>'}</td>
+            <td class="text-right cell-actions admin-only"><button onclick="event.stopPropagation(); deleteMessdiener('${m.id}')" class="btn btn-danger btn-sm">Löschen</button></td>
           </tr>`;
-        }).join('') || '<tr style="cursor:default"><td class="text-slate-500" style="padding:1.5rem 1rem">Noch keine Messdiener angelegt. Lege den ersten mit „Messdiener hinzufügen" an.</td></tr>';
+        }).join('') || '<tr style="cursor:default"><td class="text-slate-500" style="padding:1.5rem 1rem">Noch keine Messdiener angelegt.' + (admin ? ' Lege den ersten mit „Messdiener hinzufügen" an.' : '') + '</td></tr>';
+
+        applyRole();
 
         // Gottesdienste sortiert ausgeben
         const todayStr = todayString();
@@ -1001,6 +1026,7 @@
 
       // Ohne id: neuen Messdiener anlegen; mit id: bestehenden bearbeiten
       function openMessdienerModal(id) {
+        if (!isAdmin()) return alert('Nur Admins dürfen Messdiener verwalten.');
         const m = id ? state.messdiener.find(x => String(x.id) === String(id)) : null;
         editingMessdienerId = m ? m.id : null;
         document.getElementById('m-modal-title').textContent = m ? 'Messdiener bearbeiten' : 'Messdiener hinzufügen';
@@ -1167,6 +1193,7 @@
       }
 
       async function generateMissingPins() {
+        if (!isAdmin()) return alert('Nur Admins dürfen Messdiener verwalten.');
         const missing = state.messdiener.filter(m => !state.pins[String(m.id)]);
         if (missing.length === 0) return alert('Alle Minis haben bereits eine PIN.');
         if (!confirm(`Für ${missing.length} Mini(s) ohne PIN jetzt eine PIN erzeugen?`)) return;
@@ -1316,6 +1343,7 @@
       }
 
       async function saveMessdiener() {
+        if (!isAdmin()) return alert('Nur Admins dürfen Messdiener verwalten.');
         const name = document.getElementById('m-name').value.trim();
         const type = document.getElementById('m-type').value;
         const days = Array.from(document.querySelectorAll('#m-days input:checked')).map(cb => parseInt(cb.value));
@@ -1377,6 +1405,7 @@
       }
 
       async function deleteMessdiener(id) {
+        if (!isAdmin()) return alert('Nur Admins dürfen Messdiener verwalten.');
         await supabaseClient.from('messdiener').delete().eq('id', id);
         const sid = String(id);
         await supabaseClient.from('abwesenheiten').delete().eq('messdiener_id', sid);
