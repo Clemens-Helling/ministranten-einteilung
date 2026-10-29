@@ -1,0 +1,181 @@
+<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="robots" content="noindex, nofollow" />
+    <title>Beim Gottesdienst dabei</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700&family=Newsreader:opsz,wght@6..72,500;6..72,600&display=swap" rel="stylesheet" />
+    <script src="theme.js"></script>
+    <link rel="stylesheet" href="theme.css" />
+      <meta name="theme-color" content="#171F36" />
+    <link rel="icon" type="image/png" href="icons/icon-192.png" />
+  </head>
+  <body class="text-slate-800 min-h-screen">
+    <main class="max-w-md mx-auto px-4 py-8 space-y-5">
+      <header class="text-center">
+        <svg class="mx-auto mb-3" width="36" height="36" viewBox="0 0 40 40" fill="none" stroke="rgb(var(--a600))" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M8 36V17a12 12 0 0 1 24 0v19z"/><path d="M20 15v14M14 21h12"/></svg>
+        <h1 class="serif text-3xl font-semibold text-slate-900" id="titel">Gottesdienst</h1>
+        <p class="text-sm text-slate-500 mt-1" id="wann"></p>
+      </header>
+
+      <div id="message" role="alert" class="hidden text-sm rounded-lg p-3 border"></div>
+
+      <form id="login-form" class="panel panel-pad space-y-4 hidden">
+        <p class="text-sm text-slate-600">Hast du Zeit und Lust zu dienen? Melde dich kurz an und trag dich ein.</p>
+        <div>
+          <label for="name-select" class="label">Wer bist du?</label>
+          <select id="name-select" required class="field"><option value="">Wird geladen …</option></select>
+        </div>
+        <div>
+          <label for="pin-input" class="label">Deine PIN</label>
+          <input id="pin-input" type="password" inputmode="numeric" pattern="[0-9]{4}" maxlength="4" autocomplete="off" required placeholder="4 Ziffern" class="field tracking-widest" />
+          <p class="hint mt-1">Die PIN hast du von den Leitern bekommen.</p>
+        </div>
+        <label class="flex items-start gap-2 text-sm text-slate-600">
+          <input id="remember" type="checkbox" checked class="mt-0.5 rounded accent-[rgb(var(--a600))]" />
+          <span>Auf diesem Gerät merken <span class="block text-xs text-slate-400">Nicht ankreuzen bei fremden oder gemeinsam genutzten Geräten.</span></span>
+        </label>
+        <button id="login-btn" type="submit" class="btn btn-primary btn-block">Weiter</button>
+      </form>
+
+      <section id="app" class="hidden panel panel-pad space-y-4">
+        <p class="text-sm text-slate-600">Angemeldet als <strong id="who" class="text-slate-900"></strong>
+          <button id="logout-btn" type="button" class="text-slate-500 underline ml-2">Abmelden</button></p>
+        <div id="state-yes" class="hidden space-y-3">
+          <p class="badge badge-ok inline-flex">Du bist eingetragen</p>
+          <p class="text-sm text-slate-600">Die Leiter melden sich bei dir, sobald die Einteilung steht.</p>
+          <button id="leave-btn" type="button" class="btn btn-secondary btn-block">Doch nicht, wieder austragen</button>
+        </div>
+        <div id="state-no" class="hidden space-y-3">
+          <p class="text-sm text-slate-600">Wenn du Zeit hast, trag dich hier ein. Das ist noch keine feste Einteilung.</p>
+          <button id="join-btn" type="button" class="btn btn-primary btn-block">Ich habe Zeit</button>
+        </div>
+      </section>
+    </main>
+
+    <script>
+      const SUPABASE_URL = "https://wkeccnqquqwszbjhdfqo.supabase.co";
+      const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndrZWNjbnFxdXF3c3piamhkZnFvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTI3NjYwNzcsImV4cCI6MjEwODM0MjA3N30.FhbXCHfHV0H0vBp5GVF9J-vADXJ65eJ61-OMjQ2-PpY";
+      const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, { auth: { persistSession: false, autoRefreshToken: false } });
+
+      const $ = (id) => document.getElementById(id);
+      const weekdays = ["Sonntag", "Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag", "Samstag"];
+      const token = new URLSearchParams(location.search).get("t") || "";
+      let session = null; // { id, pin, name } nur im Arbeitsspeicher
+
+      function showMessage(text, kind) {
+        const box = $("message");
+        if (!text) { box.classList.add("hidden"); return; }
+        box.textContent = text;
+        box.className = "text-sm rounded-lg p-3 border " + (kind === "ok" ? "bg-brand-50 border-brand-100 text-brand-700" : "bg-[#fbe7e5] border-[#f1c9c5] text-[#a02d25]");
+      }
+      function errorText(code) {
+        return ({
+          wrong: "Die PIN stimmt nicht.",
+          locked: "Zu viele Fehlversuche. Bitte versuche es in 15 Minuten noch einmal.",
+          nopin: "Für dich ist noch keine PIN hinterlegt. Frag bitte einen Leiter.",
+          closed: "Dieser Gottesdienst ist schon vorbei.",
+          notfound: "Dieser Link ist nicht (mehr) gültig. Frag bitte einen Leiter.",
+        })[code] || "Das hat leider nicht geklappt. Bitte versuche es später noch einmal.";
+      }
+      function store(k, v) { try { localStorage.setItem(k, v); } catch (e) {} }
+      function recall(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
+      function forget(k) { try { localStorage.removeItem(k); } catch (e) {} }
+
+      function whenText(info) {
+        const [y, m, d] = info.datum.split("-").map(Number);
+        const wd = weekdays[new Date(y, m - 1, d).getDay()];
+        const time = info.zeit ? `, ${info.zeit.slice(0, 5)} Uhr` : "";
+        return `${wd}, ${String(d).padStart(2, "0")}.${String(m).padStart(2, "0")}.${y}${time}`;
+      }
+
+      function setJoined(joined) {
+        $("state-yes").classList.toggle("hidden", !joined);
+        $("state-no").classList.toggle("hidden", joined);
+      }
+
+      function enterApp(angemeldet) {
+        $("login-form").classList.add("hidden");
+        $("app").classList.remove("hidden");
+        $("who").textContent = session.name;
+        setJoined(angemeldet);
+      }
+      function leaveApp() {
+        session = null; forget("abwesenheit-pin"); $("pin-input").value = "";
+        $("app").classList.add("hidden"); $("login-form").classList.remove("hidden"); showMessage("");
+      }
+
+      async function loadNames() {
+        const select = $("name-select");
+        const { data, error } = await sb.rpc("absence_names");
+        if (error || !Array.isArray(data) || data.length === 0) { select.innerHTML = '<option value="">Nicht verfügbar</option>'; return; }
+        select.innerHTML = '<option value="">Bitte wählen …</option>';
+        data.forEach((p) => { const o = document.createElement("option"); o.value = p.id; o.textContent = p.name; select.appendChild(o); });
+        const saved = recall("abwesenheit-mini-id");
+        if (saved && data.some((p) => String(p.id) === saved)) select.value = saved;
+      }
+
+      // Anmeldedaten teilt sich diese Seite mit der Abwesenheits-Seite
+      async function login(id, pin, remember, auto) {
+        const btn = $("login-btn"); btn.disabled = true;
+        const { data, error } = await sb.rpc("signup_get", { p_token: token, p_id: id, p_pin: pin });
+        btn.disabled = false;
+        if (error || !data) { showMessage(errorText(), "error"); return false; }
+        if (!data.ok) {
+          if (data.error === "wrong" || data.error === "locked" || data.error === "nopin") { forget("abwesenheit-pin"); $("pin-input").value = ""; }
+          showMessage(auto && data.error === "wrong" ? "Deine gespeicherte PIN stimmt nicht mehr. Bitte gib sie neu ein." : errorText(data.error), "error");
+          return false;
+        }
+        remember ? (store("abwesenheit-mini-id", id), store("abwesenheit-pin", pin)) : (store("abwesenheit-mini-id", id), forget("abwesenheit-pin"));
+        const opt = Array.from($("name-select").options).find((o) => o.value === id);
+        session = { id, pin, name: opt ? opt.textContent : "" };
+        enterApp(data.angemeldet);
+        return true;
+      }
+
+      async function setJoin(join) {
+        if (!session) return;
+        showMessage("");
+        const btns = [$("join-btn"), $("leave-btn")]; btns.forEach((b) => (b.disabled = true));
+        const { data, error } = await sb.rpc("signup_set", { p_token: token, p_id: session.id, p_pin: session.pin, p_join: join });
+        btns.forEach((b) => (b.disabled = false));
+        if (error || !data || !data.ok) return showMessage(errorText(data && data.error), "error");
+        setJoined(data.angemeldet);
+        showMessage(join ? "Danke, du bist eingetragen!" : "Du bist wieder ausgetragen.", "ok");
+      }
+
+      $("login-form").addEventListener("submit", async (e) => {
+        e.preventDefault(); showMessage("");
+        const id = $("name-select").value, pin = $("pin-input").value.trim();
+        if (!id) return showMessage("Bitte wähle deinen Namen aus.", "error");
+        if (!/^\d{4}$/.test(pin)) return showMessage("Die PIN besteht aus 4 Ziffern.", "error");
+        await login(id, pin, $("remember").checked, false);
+      });
+      $("join-btn").addEventListener("click", () => setJoin(true));
+      $("leave-btn").addEventListener("click", () => setJoin(false));
+      $("logout-btn").addEventListener("click", leaveApp);
+
+      (async () => {
+        const { data: info, error } = await sb.rpc("signup_info", { p_token: token });
+        if (error || !info || !info.ok) { $("titel").textContent = "Link nicht gültig"; showMessage(errorText(info && info.error), "error"); return; }
+        $("titel").textContent = info.titel || "Gottesdienst";
+        $("wann").textContent = whenText(info);
+        if (info.closed) { showMessage(errorText("closed"), "error"); return; }
+        $("login-form").classList.remove("hidden");
+        await loadNames();
+        const id = recall("abwesenheit-mini-id"), pin = recall("abwesenheit-pin");
+        if (id && pin && /^\d{4}$/.test(pin) && $("name-select").value === id) await login(id, pin, true, true);
+      })();
+    </script>
+    <script>
+      if ("serviceWorker" in navigator && location.protocol !== "file:") {
+        window.addEventListener("load", () => navigator.serviceWorker.register("sw.js").catch(() => {}));
+      }
+    </script>
+  </body>
+</html>

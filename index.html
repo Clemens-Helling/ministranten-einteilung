@@ -406,6 +406,12 @@
         </div>
 
         <div class="border-t border-slate-100 pt-4">
+          <h4 class="serif text-lg font-semibold text-slate-900">Anmeldung per Link</h4>
+          <p class="hint mt-1 mb-3">Für Beerdigungen, Hochzeiten und Ähnliches: Minis mit Zeit tragen sich über einen Link selbst ein.</p>
+          <div id="ge-signup-body"></div>
+        </div>
+
+        <div class="border-t border-slate-100 pt-4">
           <div class="flex justify-between items-center mb-3">
             <h4 class="serif text-lg font-semibold text-slate-900">Einteilung</h4>
             <button type="button" onclick="selectAllAvailableInEdit()" class="btn btn-quiet btn-sm">Alle verfügbaren einsetzen</button>
@@ -446,7 +452,7 @@
       const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndrZWNjbnFxdXF3c3piamhkZnFvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTI3NjYwNzcsImV4cCI6MjEwODM0MjA3N30.FhbXCHfHV0H0vBp5GVF9J-vADXJ65eJ61-OMjQ2-PpY";
 
       let supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-      let state = { messdiener: [], gottesdienste: [], assignments: {}, absences: [], pins: {} };
+      let state = { messdiener: [], gottesdienste: [], assignments: {}, absences: [], pins: {}, signups: {} };
       let activeUserId = null;
 
       // ---------- Icons und Kalenderblatt ----------
@@ -586,7 +592,7 @@
           appContent.classList.add("hidden");
           appContent.classList.remove("flex");
           loginScreen.classList.remove("hidden");
-          state = { messdiener: [], gottesdienste: [], assignments: {}, absences: [], pins: {} };
+          state = { messdiener: [], gottesdienste: [], assignments: {}, absences: [], pins: {}, signups: {} };
         }
       });
 
@@ -624,6 +630,9 @@
         // Optional: Tabellen der Abwesenheits-Funktion (fehlen sie noch, bleibt alles leer)
         const { data: abData } = await supabaseClient.from("abwesenheiten").select("*");
         const { data: pinData } = await supabaseClient.from("mini_pins").select("messdiener_id, pin");
+        const { data: signData } = await supabaseClient.from("anmeldungen").select("gottesdienst_id, messdiener_id");
+        state.signups = {};
+        (signData || []).forEach(r => { (state.signups[String(r.gottesdienst_id)] = state.signups[String(r.gottesdienst_id)] || []).push(String(r.messdiener_id)); });
 
         state.absences = abData || [];
         state.pins = {};
@@ -684,7 +693,7 @@
           return `
           <tr onclick="openGottesdienstEdit('${g.id}')" title="Zum Bearbeiten klicken" class="${past ? 'text-slate-500' : ''}">
             <td data-label="Datum"><span class="inline-flex items-center gap-3">${leafHtml(g.date, { special: isSpecialService(g) })}<span class="whitespace-nowrap">${formatTimeShort(g.time)}</span></span></td>
-            <td data-label="Anlass" class="font-semibold ${past ? '' : 'text-slate-900'}">${escHtml(g.title)}</td>
+            <td data-label="Anlass" class="font-semibold ${past ? '' : 'text-slate-900'}">${escHtml(g.title)}${g.anmeldung_token && !past ? `<span class="block text-xs font-normal text-slate-500">${(state.signups[String(g.id)] || []).length} per Link angemeldet</span>` : ''}</td>
             <td data-label="Benötigt">${g.seniors} Leiter, ${g.juniors} Kinder</td>
             <td data-label="Status">${past ? '<span class="text-sm text-slate-400">Vergangen</span>' : statusBadge(serviceStatus(g))}</td>
             <td class="text-right cell-actions"><button onclick="event.stopPropagation(); deleteGottesdienst('${g.id}')" class="btn btn-danger btn-sm">Löschen</button></td>
@@ -922,6 +931,88 @@
         const modal = document.getElementById('modal-gottesdienst-edit');
         modal.classList.remove('hidden');
         modal.classList.add('flex');
+        renderSignupBox();
+        refreshSignups();
+      }
+
+      // ---------- Anmeldung per Link ----------
+      function signupUrl(g) {
+        const u = new URL('anmeldung.html', location.href);
+        u.search = '?t=' + g.anmeldung_token;
+        return u.href;
+      }
+      function currentEditService() { return state.gottesdienste.find(x => String(x.id) === String(editingGottesdienstId)); }
+
+      async function refreshSignups() {
+        const g = currentEditService();
+        if (!g || !g.anmeldung_token) return;
+        const { data } = await supabaseClient.from('anmeldungen').select('messdiener_id').eq('gottesdienst_id', String(g.id));
+        if (!data) return;
+        state.signups[String(g.id)] = data.map(r => String(r.messdiener_id));
+        if (currentEditService() === g) renderSignupBox();
+      }
+
+      function renderSignupBox() {
+        const box = document.getElementById('ge-signup-body');
+        const g = currentEditService();
+        if (!g) return;
+        if (!g.anmeldung_token) {
+          box.innerHTML = `<button type="button" onclick="createSignupLink()" class="btn btn-secondary btn-sm">${icon('plus')}Anmelde-Link erstellen</button>`;
+          return;
+        }
+        const ids = state.signups[String(g.id)] || [];
+        const people = ids.map(id => state.messdiener.find(m => String(m.id) === String(id))).filter(Boolean);
+        box.innerHTML = `
+          <p class="text-xs text-slate-500 break-all mb-2">${escHtml(signupUrl(g))}</p>
+          <div class="flex flex-wrap gap-2 mb-3">
+            <button type="button" onclick="copySignupLink()" class="btn btn-secondary btn-sm">${icon('copy')}Link kopieren</button>
+            <button type="button" onclick="endSignupLink()" class="btn btn-quiet btn-sm">Link beenden</button>
+          </div>
+          <p class="label">${people.length === 0 ? 'Noch niemand angemeldet' : `${people.length} angemeldet`}</p>
+          ${people.length ? `<div class="flex flex-wrap gap-1.5 mb-3">${people.map(m => `<span class="chip"><span class="dot ${m.type === 'Senior' ? 'dot-senior' : 'dot-junior'}"></span>${escHtml(m.name)}</span>`).join('')}</div>
+          <button type="button" onclick="adoptSignups()" class="btn btn-primary btn-sm">In die Einteilung übernehmen</button>` : ''}`;
+      }
+
+      async function createSignupLink() {
+        const g = currentEditService();
+        if (!g) return;
+        const bytes = new Uint8Array(16); crypto.getRandomValues(bytes);
+        const token = Array.from(bytes, b => b.toString(16).padStart(2, '0')).join('');
+        const { error } = await supabaseClient.from('gottesdienste').update({ anmeldung_token: token }).eq('id', g.id);
+        if (error) return alert('Der Link konnte nicht erstellt werden. Wurde supabase/anmeldungen.sql schon ausgeführt?');
+        g.anmeldung_token = token;
+        renderSignupBox();
+      }
+
+      async function endSignupLink() {
+        const g = currentEditService();
+        if (!g || !confirm('Der Link funktioniert danach nicht mehr. Bisherige Anmeldungen werden gelöscht. Link beenden?')) return;
+        const { error } = await supabaseClient.from('gottesdienste').update({ anmeldung_token: null }).eq('id', g.id);
+        if (error) return alert('Der Link konnte nicht beendet werden.');
+        await supabaseClient.from('anmeldungen').delete().eq('gottesdienst_id', String(g.id));
+        g.anmeldung_token = null;
+        state.signups[String(g.id)] = [];
+        renderSignupBox();
+      }
+
+      async function copySignupLink() {
+        const g = currentEditService();
+        if (!g) return;
+        const url = signupUrl(g);
+        try { await navigator.clipboard.writeText(url); alert('Link kopiert:\n' + url); }
+        catch (e) { prompt('Link zum Kopieren:', url); }
+      }
+
+      // Haken die Angemeldeten in der Einteilung; gespeichert wird erst mit „Speichern"
+      function adoptSignups() {
+        const g = currentEditService();
+        if (!g) return;
+        const sel = getEditSelection();
+        (state.signups[String(g.id)] || []).forEach(id => {
+          const m = state.messdiener.find(x => String(x.id) === String(id));
+          if (m && !sel[m.type].includes(String(m.id))) sel[m.type].push(String(m.id));
+        });
+        renderEditAssignees(sel);
       }
 
       function getEditSelection() {
