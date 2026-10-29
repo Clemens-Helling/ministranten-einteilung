@@ -1,0 +1,198 @@
+/* Gemeinsames Design für index.html und abwesenheit.html */
+:root {
+  --sand: #f1f0ec;
+  --paper: #ffffff;
+  --ink: #171f36;
+  --ink-soft: #36405a;
+  --muted: #6c7280;
+  --line: #e0ded7;
+  --line-soft: #ecebe6;
+  --gold: 181 138 42;
+  --senior: #4d5568;
+  --junior: #c8962e;
+}
+
+html { -webkit-text-size-adjust: 100%; }
+body { background: var(--sand); color: var(--ink); -webkit-font-smoothing: antialiased; }
+
+h1, h2, h3, .serif {
+  font-family: Newsreader, Georgia, "Times New Roman", serif;
+  letter-spacing: -0.005em;
+}
+
+:focus-visible { outline: 2px solid rgb(var(--a500)); outline-offset: 2px; }
+input[type="checkbox"], input[type="radio"] { accent-color: rgb(var(--a600)); }
+
+/* ---------- Buttons ---------- */
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 0.5rem;
+  padding: 0.55rem 1rem; border-radius: 0.65rem; border: 1px solid transparent;
+  font-size: 0.875rem; font-weight: 600; line-height: 1.25rem; white-space: nowrap; cursor: pointer;
+  transition: background-color 0.15s, border-color 0.15s, color 0.15s;
+}
+.btn:disabled { opacity: 0.6; cursor: not-allowed; }
+.btn svg { width: 1.05rem; height: 1.05rem; flex: none; }
+.btn-primary { background: rgb(var(--a600)); color: #fff; }
+.btn-primary:hover:not(:disabled) { background: rgb(var(--a700)); }
+.btn-secondary { background: #fff; color: var(--ink-soft); border-color: #cbc9c1; }
+.btn-secondary:hover:not(:disabled) { background: #f6f5f2; border-color: #b7b5ac; }
+.btn-quiet { color: #4d5568; }
+.btn-quiet:hover:not(:disabled) { background: #edece7; }
+.btn-danger { color: #b4332b; }
+.btn-danger:hover:not(:disabled) { background: #fbefee; }
+.btn-sm { padding: 0.3rem 0.65rem; font-size: 0.8125rem; border-radius: 0.55rem; }
+.btn-block { width: 100%; }
+
+/* ---------- Formularfelder ---------- */
+.field {
+  width: 100%; background: #fff; color: var(--ink); border: 1px solid #cbc9c1; border-radius: 0.65rem;
+  padding: 0.55rem 0.75rem; font-size: 0.9rem; transition: border-color 0.15s, box-shadow 0.15s;
+}
+.field::placeholder { color: #9c9fa6; }
+.field:focus { outline: none; border-color: rgb(var(--a500)); box-shadow: 0 0 0 3px rgb(var(--a500) / 0.18); }
+.label { display: block; font-size: 0.8125rem; font-weight: 600; color: var(--ink-soft); margin-bottom: 0.35rem; }
+.hint { font-size: 0.75rem; line-height: 1.4; color: var(--muted); }
+.field-group:focus-within { border-color: rgb(var(--a500)); box-shadow: 0 0 0 3px rgb(var(--a500) / 0.18); }
+
+/* Wochentage als Auswahl-Pillen */
+.daypick { display: inline-flex; }
+.daypick input { position: absolute; opacity: 0; pointer-events: none; }
+.daypick span {
+  min-width: 2.6rem; text-align: center; padding: 0.4rem 0.55rem; border-radius: 0.6rem; cursor: pointer;
+  border: 1px solid #cbc9c1; background: #fff; font-size: 0.85rem; font-weight: 600; color: var(--ink-soft);
+  transition: background-color 0.12s, border-color 0.12s, color 0.12s; user-select: none;
+}
+.daypick span:hover { background: #f6f5f2; }
+.daypick input:checked + span { background: rgb(var(--a600)); border-color: rgb(var(--a600)); color: #fff; }
+.daypick input:focus-visible + span { outline: 2px solid rgb(var(--a500)); outline-offset: 2px; }
+
+/* ---------- Flächen ---------- */
+.panel { background: var(--paper); border: 1px solid var(--line); border-radius: 14px; }
+.panel-pad { padding: 1.25rem; }
+.panel-title { font-family: Newsreader, Georgia, serif; font-size: 1.2rem; font-weight: 600; color: var(--ink); line-height: 1.25; }
+
+.page-head { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 1rem; }
+.page-title { font-family: Newsreader, Georgia, serif; font-size: 2rem; font-weight: 600; line-height: 1.1; color: var(--ink); }
+.page-sub { margin-top: 0.35rem; color: var(--muted); font-size: 0.925rem; max-width: 58ch; }
+
+/* ---------- Listen und Tabellen ---------- */
+.row {
+  display: flex; align-items: center; gap: 0.9rem; padding: 0.8rem 1rem;
+  border-top: 1px solid var(--line-soft); cursor: pointer; transition: background-color 0.12s;
+}
+.row:first-child { border-top: 0; }
+.row:hover { background: #f8f7f4; }
+.row-static { cursor: default; }
+.row-static:hover { background: transparent; }
+
+.table-clean { width: 100%; border-collapse: collapse; text-align: left; }
+.table-clean thead th {
+  padding: 0.75rem 1rem; font-size: 0.8125rem; font-weight: 600; color: var(--muted);
+  background: #faf9f7; border-bottom: 1px solid var(--line);
+}
+.table-clean tbody tr { border-top: 1px solid var(--line-soft); cursor: pointer; transition: background-color 0.12s; }
+.table-clean tbody tr:first-child { border-top: 0; }
+.table-clean tbody tr:hover { background: #f8f7f4; }
+.table-clean td { padding: 0.8rem 1rem; font-size: 0.9rem; vertical-align: middle; }
+
+/* ---------- Kleine Bausteine ---------- */
+.badge {
+  display: inline-flex; align-items: center; gap: 0.4rem; padding: 0.18rem 0.6rem; border-radius: 999px;
+  font-size: 0.75rem; font-weight: 600; white-space: nowrap;
+}
+.badge::before { content: ""; width: 0.4rem; height: 0.4rem; border-radius: 50%; background: currentColor; }
+.badge-ok { background: #e6f2ea; color: #1f6b43; }
+.badge-warn { background: #fbf0d9; color: #8a5a0b; }
+.badge-bad { background: #fbe7e5; color: #a02d25; }
+
+.dot { display: inline-block; width: 0.55rem; height: 0.55rem; border-radius: 50%; flex: none; }
+.dot-senior { background: var(--senior); }
+.dot-junior { background: var(--junior); }
+
+.chip {
+  display: inline-flex; align-items: center; gap: 0.4rem; padding: 0.22rem 0.7rem 0.22rem 0.6rem; border-radius: 999px;
+  background: #f1f0ec; color: #252e48; font-size: 0.85rem; font-weight: 500;
+}
+.daychip { display: inline-block; padding: 0.05rem 0.4rem; border-radius: 0.4rem; background: #edece7; color: #4d5568; font-size: 0.72rem; font-weight: 600; }
+
+/* Abreißkalender-Blatt */
+.leaf {
+  width: 3.5rem; flex: none; text-align: center; background: #fff; border: 1px solid #d6d3ca; border-radius: 0.65rem;
+  overflow: hidden; box-shadow: 0 1px 0 #d6d3ca;
+}
+.leaf-month { background: rgb(var(--a600)); color: #fff; font-size: 0.7rem; font-weight: 600; line-height: 1; padding: 0.3rem 0; }
+.leaf-day { font-family: Newsreader, Georgia, serif; font-size: 1.65rem; font-weight: 600; line-height: 1; padding-top: 0.25rem; color: var(--ink); }
+.leaf-wd { font-size: 0.7rem; color: var(--muted); padding: 0.1rem 0 0.3rem; font-weight: 500; }
+.leaf.special .leaf-month { background: rgb(var(--gold)); }
+.leaf-lg { width: 6.25rem; border-radius: 0.9rem; }
+.leaf-lg .leaf-month { font-size: 0.85rem; padding: 0.45rem 0; }
+.leaf-lg .leaf-day { font-size: 3.4rem; padding-top: 0.4rem; }
+.leaf-lg .leaf-wd { font-size: 0.85rem; padding: 0.15rem 0 0.55rem; }
+
+/* Nächster Gottesdienst */
+.next { display: flex; flex-wrap: wrap; gap: 1.5rem; align-items: center; padding: 1.5rem; }
+.next-title { font-family: Newsreader, Georgia, serif; font-size: 1.9rem; font-weight: 600; line-height: 1.1; }
+
+/* Kennzahlen */
+.stats { display: grid; grid-template-columns: repeat(2, 1fr); gap: 1px; background: var(--line); border: 1px solid var(--line); border-radius: 14px; overflow: hidden; }
+.stat { background: #fff; padding: 1rem 1.25rem; }
+.stat-value { font-family: Newsreader, Georgia, serif; font-size: 2rem; font-weight: 600; line-height: 1.1; }
+.stat-label { font-size: 0.85rem; color: var(--muted); margin-top: 0.15rem; }
+@media (min-width: 1024px) { .stats { grid-template-columns: repeat(4, 1fr); } }
+
+.bar-track { height: 0.55rem; background: #edece7; border-radius: 999px; overflow: hidden; flex: 1; }
+.bar-fill { height: 100%; border-radius: 999px; }
+
+/* ---------- Navigation ---------- */
+.sidebar {
+  width: 17rem; flex: none; position: sticky; top: 0; height: 100vh; display: flex; flex-direction: column;
+  padding: 1.5rem 1rem 1.25rem; background: var(--ink); color: #cbd0dc; border-right: 1px solid rgb(var(--gold) / 0.3);
+}
+.nav-item {
+  position: relative; display: flex; align-items: center; gap: 0.75rem; width: 100%; padding: 0.6rem 0.85rem;
+  border-radius: 0.6rem; color: #aeb5c6; font-size: 0.925rem; font-weight: 500; text-align: left;
+  transition: background-color 0.15s, color 0.15s;
+}
+.nav-item svg { width: 1.25rem; height: 1.25rem; flex: none; }
+.nav-item:hover { background: rgba(255, 255, 255, 0.06); color: #fff; }
+.nav-item[aria-current="page"] { background: rgba(255, 255, 255, 0.1); color: #fff; }
+.nav-item[aria-current="page"]::before {
+  content: ""; position: absolute; left: -1rem; top: 0.5rem; bottom: 0.5rem; width: 3px; border-radius: 0 3px 3px 0; background: rgb(var(--a500));
+}
+.season-dot { width: 0.6rem; height: 0.6rem; border-radius: 50%; background: rgb(var(--a500)); box-shadow: 0 0 0 3px rgb(var(--a500) / 0.25); flex: none; }
+
+.mobile-top { display: flex; align-items: center; justify-content: space-between; padding: 0.75rem 1rem; background: var(--ink); color: #fff; border-bottom: 1px solid rgb(var(--gold) / 0.3); }
+.mobile-nav {
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 40; display: grid; grid-template-columns: repeat(6, 1fr);
+  background: #fff; border-top: 1px solid var(--line); padding-bottom: env(safe-area-inset-bottom);
+}
+.mobile-nav button {
+  position: relative; display: flex; flex-direction: column; align-items: center; gap: 0.15rem; padding: 0.55rem 0.1rem 0.5rem;
+  font-size: 0.66rem; font-weight: 600; color: var(--muted);
+}
+.mobile-nav button svg { width: 1.35rem; height: 1.35rem; }
+.mobile-nav button[aria-current="page"] { color: rgb(var(--a700)); }
+.mobile-nav button[aria-current="page"]::before {
+  content: ""; position: absolute; top: 0; left: 25%; right: 25%; height: 2px; background: rgb(var(--a600)); border-radius: 0 0 2px 2px;
+}
+
+@media (max-width: 1023px) { .sidebar { display: none; } }
+@media (min-width: 1024px) { .mobile-top, .mobile-nav { display: none; } }
+
+/* ---------- Dialoge ---------- */
+.modal { animation: modal-fade 0.15s ease-out; }
+.modal-card { background: #fff; border-radius: 18px; box-shadow: 0 24px 60px -12px rgba(23, 31, 54, 0.35); animation: modal-pop 0.18s cubic-bezier(0.2, 0.8, 0.3, 1); }
+.modal-title { font-family: Newsreader, Georgia, serif; font-size: 1.5rem; font-weight: 600; line-height: 1.2; color: var(--ink); }
+@keyframes modal-fade { from { opacity: 0; } }
+@keyframes modal-pop { from { opacity: 0; transform: translateY(8px) scale(0.98); } }
+
+/* ---------- Anmeldung ---------- */
+.login-art { background: var(--ink); color: #fff; position: relative; overflow: hidden; }
+.login-art::after {
+  content: ""; position: absolute; inset: 0; pointer-events: none;
+  background: linear-gradient(to top, rgba(23, 31, 54, 0.55), transparent 55%);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; }
+}
