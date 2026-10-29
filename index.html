@@ -48,6 +48,14 @@
         #pdf-print-area tr.special td { font-weight: bold; font-style: italic; }
       }
     </style>
+      <link rel="manifest" href="manifest.webmanifest" />
+    <meta name="theme-color" content="#171F36" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-title" content="Messdiener" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black" />
+    <link rel="apple-touch-icon" href="icons/apple-touch-icon.png" />
+    <link rel="icon" type="image/png" href="icons/icon-192.png" />
   </head>
   <body class="min-h-screen flex flex-col">
 
@@ -1599,6 +1607,11 @@
 
       // Anwendung starten & Auth-Überwachung initialisieren
       initializeAuth();
+    </script>
+    <script>
+      if ("serviceWorker" in navigator && location.protocol !== "file:") {
+        window.addEventListener("load", () => navigator.serviceWorker.register("sw.js").catch(() => {}));
+      }
     </script>
   </body>
 </html>

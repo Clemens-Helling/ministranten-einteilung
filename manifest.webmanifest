@@ -1,0 +1,17 @@
+{
+  "id": "./index.html",
+  "name": "Messdiener-Manager",
+  "short_name": "Messdiener",
+  "description": "Einteilung der Messdiener für Gottesdienste",
+  "lang": "de",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#171F36",
+  "theme_color": "#171F36",
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
