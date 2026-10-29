@@ -35,6 +35,7 @@
       }
       @media print {
         @page { size: A4 portrait; margin: 15mm; }
+        html, body { background: #fff !important; }
         body > *:not(#pdf-print-area) { display: none !important; }
         #pdf-print-area { display: block !important; font: 12px Calibri, Arial, sans-serif; color: #000; }
         #pdf-print-area h1 { font-size: 26px; font-weight: normal; color: #5b9bd5; margin: 0 0 24px; font-family: Calibri, Arial, sans-serif; }
