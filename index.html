@@ -221,7 +221,7 @@
             <div class="page-head">
               <div>
                 <h2 class="page-title">Einteilung</h2>
-                <p class="page-sub">Verteilt die Minis fair auf alle Gottesdienste im Zeitraum und speichert das Ergebnis.</p>
+                <p class="page-sub">Verteilt die Minis fair auf alle Gottesdienste im Zeitraum und speichert das Ergebnis. Frühere und schon geplante Einsätze der letzten und nächsten 16 Wochen zählen mit, damit alle gleich oft dran sind.</p>
               </div>
             </div>
             <div class="panel panel-pad space-y-5">
@@ -1444,7 +1444,7 @@
 
       // Wählt Minis nach Fairness (wenigste Einsätze zuerst). Partner, die am Tag beide verfügbar sind,
       // bilden eine Gruppe und werden nur gemeinsam eingeteilt – und nur, wenn die ganze Gruppe in die Anzahl passt.
-      function pickWithPartners(available, needSeniors, needJuniors, counts) {
+      function pickWithPartners(available, needSeniors, needJuniors, counts, last = {}) {
         const byId = new Map(available.map(m => [String(m.id), m]));
         const seen = new Set();
         const groups = [];
@@ -1463,7 +1463,9 @@
           groups.push(group);
         }
         const score = (g) => g.reduce((sum, m) => sum + (counts[m.id] || 0), 0) / g.length;
-        groups.sort((a, b) => score(a) - score(b));
+        // Zuerst wer am wenigsten dran war; bei Gleichstand wer am längsten nicht dran war
+        const lastOf = (g) => g.reduce((min, m) => { const l = last[m.id] || ''; return min === null || l < min ? l : min; }, null) || '';
+        groups.sort((a, b) => (score(a) - score(b)) || lastOf(a).localeCompare(lastOf(b)));
 
         const seniors = [], juniors = [];
         for (const g of groups) {
@@ -1480,6 +1482,7 @@
       async function runAutoAssign() {
         await loadDataFromDB(); // aktuelle Abwesenheiten der Minis berücksichtigen
         let counts = {};
+        const last = {}; // Datum des letzten Einsatzes je Mini
         state.messdiener.forEach(m => counts[m.id] = 0);
         const allMinis = document.getElementById('assign-all-minis').checked;
 
@@ -1489,12 +1492,31 @@
           return;
         }
 
+        // Bisherige Einsätze außerhalb des Zeitraums (letzte/kommende 16 Wochen) zählen mit,
+        // damit über mehrere Pläne hinweg jeder gleich oft dran ist.
+        const targetIds = new Set(targetGottesdienste.map(g => String(g.id)));
+        const from = new Date(`${targetGottesdienste[0].date}T12:00:00`); from.setDate(from.getDate() - 112);
+        const to = new Date(`${targetGottesdienste[targetGottesdienste.length - 1].date}T12:00:00`); to.setDate(to.getDate() + 112);
+        const iso = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+        const fromIso = iso(from), toIso = iso(to);
+        state.gottesdienste.forEach(g => {
+          if (targetIds.has(String(g.id)) || g.date < fromIso || g.date > toIso) return;
+          const a = state.assignments[g.id];
+          if (!a) return;
+          [...(a.seniors || []), ...(a.juniors || [])].forEach(p => {
+            if (counts[p.id] === undefined) return;
+            counts[p.id]++;
+            if (!last[p.id] || g.date > last[p.id]) last[p.id] = g.date;
+          });
+        });
+
         for (const g of targetGottesdienste) {
           const dayOfWeek = new Date(`${g.date}T12:00:00`).getDay();
           const available = state.messdiener.filter(m => isAvailableOn(m, g.date));
           
-          const seniors = available.filter(m => m.type === 'Senior').sort((a,b) => counts[a.id] - counts[b.id]);
-          const juniors = available.filter(m => m.type === 'Junior').sort((a,b) => counts[a.id] - counts[b.id]);
+          const byFair = (a, b) => (counts[a.id] - counts[b.id]) || String(last[a.id] || '').localeCompare(String(last[b.id] || ''));
+          const seniors = available.filter(m => m.type === 'Senior').sort(byFair);
+          const juniors = available.filter(m => m.type === 'Junior').sort(byFair);
 
           // Sonntags-/Freitags-Vorlage gilt standardmäßig für alle Gottesdienste an diesem Wochentag
           const tpl = getAutoTemplateForDate(g.date);
@@ -1507,10 +1529,11 @@
             chosenSeniors = seniors;
             chosenJuniors = juniors;
           } else {
-            ({ seniors: chosenSeniors, juniors: chosenJuniors } = pickWithPartners(available, needSeniors, needJuniors, counts));
+            ({ seniors: chosenSeniors, juniors: chosenJuniors } = pickWithPartners(available, needSeniors, needJuniors, counts, last));
           }
           chosenSeniors.forEach(s => counts[s.id]++);
           chosenJuniors.forEach(j => counts[j.id]++);
+          [...chosenSeniors, ...chosenJuniors].forEach(m => { last[m.id] = g.date; });
 
           state.assignments[g.id] = { seniors: chosenSeniors, juniors: chosenJuniors };
 

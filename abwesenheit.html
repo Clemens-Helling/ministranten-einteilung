@@ -89,6 +89,17 @@
           <h2 class="panel-title mb-2">Meine Abwesenheiten</h2>
           <ul id="list" class="divide-y divide-slate-100"></ul>
         </div>
+
+        <div id="cal-card" class="panel panel-pad hidden">
+          <h2 class="panel-title mb-1">Meine Dienste im Kalender</h2>
+          <p class="hint mb-3">Deine Einteilungen erscheinen automatisch in deinem Handykalender und aktualisieren sich von selbst.</p>
+          <div class="flex flex-wrap gap-2">
+            <a id="cal-subscribe" class="btn btn-primary" href="#">Kalender abonnieren</a>
+            <button id="cal-copy" type="button" class="btn btn-secondary">Link kopieren</button>
+          </div>
+          <p class="hint mt-3">Öffnet sich nichts? Kopiere den Link und füge ihn im Kalender unter „Kalender per URL hinzufügen“ (Google) bzw. „Kalenderabo hinzufügen“ (iPhone) ein. Der Link gehört nur dir, gib ihn nicht weiter.</p>
+          <button id="cal-reset" type="button" class="btn btn-quiet btn-sm mt-2">Neuen Link erzeugen</button>
+        </div>
       </section>
     </main>
 
@@ -192,6 +203,26 @@
         });
       }
 
+      let calUrl = "";
+      async function loadCalendar(reset) {
+        const card = $("cal-card");
+        if (!session) return;
+        const { data, error } = await sb.rpc(reset ? "calendar_link_reset" : "calendar_link", { p_id: session.id, p_pin: session.pin });
+        if (error || !data || !data.ok) { card.classList.add("hidden"); return; }
+        calUrl = `${SUPABASE_URL}/functions/v1/kalender?token=${data.token}`;
+        $("cal-subscribe").href = calUrl.replace(/^https:/, "webcal:");
+        card.classList.remove("hidden");
+      }
+      $("cal-copy").addEventListener("click", async () => {
+        try { await navigator.clipboard.writeText(calUrl); showMessage("Link kopiert.", "ok"); }
+        catch (e) { prompt("Link zum Kopieren:", calUrl); }
+      });
+      $("cal-reset").addEventListener("click", async () => {
+        if (!confirm("Der bisherige Link funktioniert danach nicht mehr. Neuen Link erzeugen?")) return;
+        await loadCalendar(true);
+        showMessage("Neuer Link erzeugt. Bitte das Abo im Kalender neu hinzufügen.", "ok");
+      });
+
       function enterApp(result) {
         $("login-form").classList.add("hidden");
         $("app").classList.remove("hidden");
@@ -200,6 +231,7 @@
         $("von").min = t; $("bis").min = t;
         $("von").value = ""; $("bis").value = ""; $("grund").value = "";
         renderList(result.abwesenheiten || []);
+        loadCalendar(false);
       }
 
       function leaveApp() {
@@ -207,6 +239,8 @@
         forget("abwesenheit-pin");
         $("pin-input").value = "";
         $("app").classList.add("hidden");
+        $("cal-card").classList.add("hidden");
+        calUrl = "";
         $("login-form").classList.remove("hidden");
         showMessage("");
       }
