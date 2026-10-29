@@ -203,13 +203,15 @@
         });
       }
 
+      // Adresse der Edge Function (steht im Supabase-Dashboard unter Edge Functions in der URL-Spalte)
+      const CALENDAR_FUNCTION = "rapid-task";
       let calUrl = "";
       async function loadCalendar(reset) {
         const card = $("cal-card");
         if (!session) return;
         const { data, error } = await sb.rpc(reset ? "calendar_link_reset" : "calendar_link", { p_id: session.id, p_pin: session.pin });
         if (error || !data || !data.ok) { card.classList.add("hidden"); return; }
-        calUrl = `${SUPABASE_URL}/functions/v1/kalender?token=${data.token}`;
+        calUrl = `${SUPABASE_URL}/functions/v1/${CALENDAR_FUNCTION}?token=${data.token}`;
         $("cal-subscribe").href = calUrl.replace(/^https:/, "webcal:");
         card.classList.remove("hidden");
       }
