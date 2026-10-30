@@ -50,12 +50,40 @@
   var key = FORCE_SEASON || (param && PALETTES[param] ? param : null) || seasonKey(new Date());
   var pal = PALETTES[key];
   var root = document.documentElement;
-  Object.keys(pal.c).forEach(function (step) { root.style.setProperty("--a" + step, pal.c[step].join(" ")); });
+  // Akzentfarben als Stylesheet (hell und dunkel), damit der dunkle Modus sie überschreiben kann
+  function mix(a, b, t) { return [0, 1, 2].map(function (i) { return Math.round(a[i] * t + b[i] * (1 - t)); }).join(" "); }
+  var c = pal.c, base = [23, 30, 51], white = [255, 255, 255];
+  var lightVars = Object.keys(c).map(function (step) { return "--a" + step + ":" + c[step].join(" ") + ";"; }).join("");
+  var darkVars = "--a50:" + mix(c[500], base, 0.16) + ";--a100:" + mix(c[500], base, 0.28) + ";--a500:" + mix(c[500], white, 0.85) + ";--a600:" + c[600].join(" ") + ";--a700:" + mix(c[500], white, 0.55) + ";";
+  var st = document.createElement("style");
+  st.textContent = ":root{" + lightVars + '}html[data-theme="dark"]{' + darkVars + "}";
+  document.head.appendChild(st);
   root.setAttribute("data-season", key);
+
+  // ---- Hell / Dunkel / Automatisch ----
+  var THEME_KEY = "messdiener-theme";
+  var mq = window.matchMedia ? window.matchMedia("(prefers-color-scheme: dark)") : null;
+  function getMode() { try { var m = localStorage.getItem(THEME_KEY); return m === "light" || m === "dark" ? m : "auto"; } catch (e) { return "auto"; } }
+  function applyTheme() {
+    var mode = getMode();
+    var dark = mode === "dark" || (mode === "auto" && mq && mq.matches);
+    root.setAttribute("data-theme", dark ? "dark" : "light");
+    var meta = document.querySelector('meta[name="theme-color"]');
+    if (meta) meta.setAttribute("content", dark ? "#0b1020" : "#171F36");
+    var label = document.getElementById("theme-label");
+    if (label) label.textContent = "Darstellung: " + { auto: "Automatisch", light: "Hell", dark: "Dunkel" }[mode];
+  }
+  window.getThemeMode = getMode;
+  window.setThemeMode = function (mode) { try { localStorage.setItem(THEME_KEY, mode); } catch (e) {} applyTheme(); };
+  window.cycleTheme = function () { window.setThemeMode({ auto: "light", light: "dark", dark: "auto" }[getMode()]); };
+  window.applyTheme = applyTheme;
+  if (mq && mq.addEventListener) mq.addEventListener("change", applyTheme);
+  applyTheme();
   window.LITURGY = { key: key, label: pal.label };
 
   if (window.tailwind) {
     var accent = function (step) { return "rgb(var(--a" + step + ") / <alpha-value>)"; };
+    var sl = function (step) { return "rgb(var(--s" + step + ") / <alpha-value>)"; };
     window.tailwind.config = {
       theme: {
         extend: {
@@ -67,8 +95,8 @@
             brand: { 50: accent(50), 100: accent(100), 500: accent(500), 600: accent(600), 700: accent(700) },
             // Sandstein-Töne für Flächen, Nachtblau für Text und Navigation
             slate: {
-              50: "#F6F5F2", 100: "#EDECE7", 200: "#E0DED7", 300: "#CBC9C1", 400: "#9C9FA6",
-              500: "#6C7280", 600: "#4D5568", 700: "#36405A", 800: "#252E48", 900: "#171F36",
+              50: sl(50), 100: sl(100), 200: sl(200), 300: sl(300), 400: sl(400),
+              500: sl(500), 600: sl(600), 700: sl(700), 800: sl(800), 900: sl(900),
             },
           },
         },

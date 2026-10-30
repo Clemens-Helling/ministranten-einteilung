@@ -72,7 +72,7 @@
         const box = $("message");
         if (!text) { box.classList.add("hidden"); return; }
         box.textContent = text;
-        box.className = "text-sm rounded-lg p-3 border " + (kind === "ok" ? "bg-brand-50 border-brand-100 text-brand-700" : "bg-[#fbe7e5] border-[#f1c9c5] text-[#a02d25]");
+        box.className = "text-sm rounded-lg p-3 border " + (kind === "ok" ? "msg-ok" : "msg-bad");
       }
       function errorText(code) {
         return ({
