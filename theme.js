@@ -75,4 +75,35 @@
       },
     };
   }
+
+  // ---- Hinweise (Toast) und Update-Banner ----
+  function stack() {
+    var el = document.getElementById("toast-stack");
+    if (!el) { el = document.createElement("div"); el.id = "toast-stack"; el.className = "toast-stack"; el.setAttribute("role", "status"); el.setAttribute("aria-live", "polite"); document.body.appendChild(el); }
+    return el;
+  }
+  window.toast = function (msg, opts) {
+    opts = opts || {};
+    var t = document.createElement("div");
+    t.className = "toast";
+    t.textContent = String(msg);
+    if (opts.action) {
+      var b = document.createElement("button");
+      b.type = "button"; b.textContent = opts.action.label;
+      b.addEventListener("click", function () { opts.action.run(); });
+      t.appendChild(b);
+    }
+    stack().appendChild(t);
+    var ms = opts.duration || (opts.action ? 60000 : Math.min(2500 + String(msg).length * 40, 7000));
+    setTimeout(function () { t.classList.add("out"); setTimeout(function () { t.remove(); }, 300); }, ms);
+    return t;
+  };
+
+  if ("serviceWorker" in navigator) {
+    var hadController = !!navigator.serviceWorker.controller;
+    navigator.serviceWorker.addEventListener("controllerchange", function () {
+      if (!hadController) { hadController = true; return; }
+      window.toast("Neue Version verfügbar.", { action: { label: "Neu laden", run: function () { location.reload(); } } });
+    });
+  }
 })();

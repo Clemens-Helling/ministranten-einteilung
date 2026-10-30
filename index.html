@@ -2,7 +2,7 @@
 <html lang="de">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <title>Messdiener-Manager</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -505,6 +505,38 @@
       let state = { messdiener: [], gottesdienste: [], assignments: {}, absences: [], pins: {}, signups: {}, attendance: {}, attendanceKey: null };
       let activeUserId = null;
 
+      // Hinweise erscheinen unten als kurze Meldung statt als Browser-Fenster
+      window.alert = (msg) => window.toast(msg);
+
+      // ---------- Zwischenspeicher: zuletzt gesehene Daten sofort zeigen, auch ohne Netz ----------
+      const CACHE_KEY = 'messdiener-cache-v1';
+      function saveCache() {
+        try {
+          localStorage.setItem(CACHE_KEY, JSON.stringify({
+            user: activeUserId, at: Date.now(),
+            messdiener: state.messdiener, gottesdienste: state.gottesdienste, assignments: state.assignments,
+            absences: state.absences, signups: state.signups, attendance: state.attendance,
+          }));
+        } catch (e) {}
+      }
+      function loadCache() {
+        try {
+          const c = JSON.parse(localStorage.getItem(CACHE_KEY) || 'null');
+          if (!c || c.user !== activeUserId) return null;
+          return c;
+        } catch (e) { return null; }
+      }
+      function clearCache() { try { localStorage.removeItem(CACHE_KEY); } catch (e) {} }
+      function setOffline(at) {
+        let el = document.getElementById('offline-note');
+        if (!at) { if (el) el.remove(); return; }
+        if (!el) {
+          el = document.createElement('div'); el.id = 'offline-note'; el.className = 'offline-note';
+          const main = document.querySelector('main'); main.parentNode.insertBefore(el, main);
+        }
+        el.textContent = 'Keine Verbindung. Stand von ' + new Date(at).toLocaleString('de-DE', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) + ' Uhr.';
+      }
+
       // ---------- Icons und Kalenderblatt ----------
       const ICON_PATHS = {
         home: '<rect x="3.5" y="3.5" width="7" height="8" rx="1.5"/><rect x="13.5" y="3.5" width="7" height="5" rx="1.5"/><rect x="13.5" y="11.5" width="7" height="9" rx="1.5"/><rect x="3.5" y="14.5" width="7" height="6" rx="1.5"/>',
@@ -635,11 +667,22 @@
           
           if (activeUserId !== session.user.id) {
             activeUserId = session.user.id;
+            // Zuletzt gesehenen Stand sofort zeigen, danach frisch laden
+            const c = loadCache();
+            if (c) {
+              state.messdiener = c.messdiener || []; state.gottesdienste = c.gottesdienste || []; state.assignments = c.assignments || {};
+              state.absences = c.absences || []; state.signups = c.signups || {}; state.attendance = c.attendance || {};
+              renderAll();
+            }
             loadRole().then(loadDataFromDB);
+            // Verknüpfung vom App-Symbol (z. B. index.html#anwesenheit)
+            const wanted = location.hash.slice(1);
+            if (['messdiener', 'gottesdienste', 'einteilung', 'anwesenheit', 'vorlagen', 'export'].includes(wanted)) switchTab(wanted);
           }
         } else {
           activeUserId = null;
           userRole = 'leiter';
+          clearCache(); setOffline(null);
           appContent.classList.add("hidden");
           appContent.classList.remove("flex");
           loginScreen.classList.remove("hidden");
@@ -675,7 +718,7 @@
       }
 
       async function loadDataFromDB() {
-        const { data: mData } = await supabaseClient.from("messdiener").select("*");
+        const { data: mData, error: mErr } = await supabaseClient.from("messdiener").select("*");
         const { data: gData } = await supabaseClient.from("gottesdienste").select("*");
         const { data: aData } = await supabaseClient.from("assignments").select("*");
         // Optional: Tabellen der Abwesenheits-Funktion (fehlen sie noch, bleibt alles leer)
@@ -690,6 +733,18 @@
         state.signups = {};
         (signData || []).forEach(r => { (state.signups[String(r.gottesdienst_id)] = state.signups[String(r.gottesdienst_id)] || []).push(String(r.messdiener_id)); });
 
+        if (mErr || !mData || !gData) {
+          // Offline oder Fehler: zuletzt gespeicherten Stand anzeigen
+          const c = loadCache();
+          if (c) {
+            state.messdiener = c.messdiener || []; state.gottesdienste = c.gottesdienste || []; state.assignments = c.assignments || {};
+            state.absences = c.absences || []; state.signups = c.signups || {}; state.attendance = c.attendance || {};
+            setOffline(c.at);
+            renderAll();
+          }
+          return;
+        }
+        setOffline(null);
         state.absences = abData || [];
         state.pins = {};
         (pinData || []).forEach(r => { state.pins[String(r.messdiener_id)] = r.pin; });
@@ -703,6 +758,7 @@
           });
         }
         renderAll();
+        saveCache();
       }
 
       function switchTab(tabId) {
@@ -1449,6 +1505,28 @@
       }
 
       function openGottesdienstModal() { document.getElementById('g-template').value = ''; document.getElementById('modal-gottesdienst').classList.remove('hidden'); document.getElementById('modal-gottesdienst').classList.add('flex'); }
+      // Dialoge am Handy per Wischen nach unten schließen (am Griff oben im Dialog)
+      (function () {
+        let startY = null, card = null, dy = 0;
+        document.addEventListener('touchstart', (e) => {
+          const c = e.target.closest('.modal-card');
+          if (!c || window.innerWidth > 640 || c.scrollTop > 0) return;
+          if (e.touches[0].clientY - c.getBoundingClientRect().top > 60) return;
+          startY = e.touches[0].clientY; card = c; dy = 0;
+        }, { passive: true });
+        document.addEventListener('touchmove', (e) => {
+          if (startY === null) return;
+          dy = Math.max(0, e.touches[0].clientY - startY);
+          card.style.transition = 'none'; card.style.transform = `translateY(${dy}px)`;
+        }, { passive: true });
+        document.addEventListener('touchend', () => {
+          if (startY === null) return;
+          card.style.transition = ''; card.style.transform = '';
+          if (dy > 110) closeModals();
+          startY = null; card = null; dy = 0;
+        });
+      })();
+
       function closeModals() { document.querySelectorAll('.modal').forEach(m => { m.classList.add('hidden'); m.classList.remove('flex'); }); }
 
       // ---------- Abwesenheiten ----------

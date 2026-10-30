@@ -1,6 +1,6 @@
 // Service Worker: macht die Seiten installierbar und lädt sie offline aus dem Cache.
 // Daten von Supabase werden nie zwischengespeichert.
-const CACHE = 'messdiener-v1';
+const CACHE = 'messdiener-v2';
 const SHELL = ['./', 'index.html', 'abwesenheit.html', 'theme.js', 'theme.css', 'qrcode.js', 'icons/icon-192.png', 'icons/icon-512.png'];
 
 self.addEventListener('install', (e) => {

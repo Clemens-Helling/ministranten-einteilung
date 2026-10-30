@@ -197,3 +197,59 @@ input[type="checkbox"], input[type="radio"] { accent-color: rgb(var(--a600)); }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; }
 }
+
+
+/* ---------- Mobil / PWA ---------- */
+html { -webkit-tap-highlight-color: transparent; -webkit-text-size-adjust: 100%; }
+body { overscroll-behavior-y: none; }
+input, select, textarea, button { touch-action: manipulation; }
+@media (max-width: 767px) {
+  input, select, textarea { font-size: 16px !important; }
+  .btn { min-height: 44px; }
+  .btn-sm { min-height: 40px; padding-left: 0.85rem; padding-right: 0.85rem; }
+  .field { min-height: 44px; }
+  input[type="checkbox"] { width: 1.3rem !important; height: 1.3rem !important; flex: none; }
+  .modal label.flex { min-height: 44px; }
+  .row, .table-clean tbody tr { -webkit-touch-callout: none; }
+}
+@media (max-width: 1023px) {
+  .mobile-top { padding-top: calc(0.75rem + env(safe-area-inset-top)); padding-left: max(1rem, env(safe-area-inset-left)); padding-right: max(1rem, env(safe-area-inset-right)); }
+}
+body { padding-left: env(safe-area-inset-left); padding-right: env(safe-area-inset-right); }
+
+/* Dialoge am Handy als Sheet von unten */
+@media (max-width: 640px) {
+  .modal { align-items: flex-end !important; padding: 0 !important; }
+  .modal-card {
+    max-width: none !important; width: 100% !important; max-height: 92vh; max-height: 92dvh;
+    border-radius: 20px 20px 0 0; padding-bottom: calc(1.5rem + env(safe-area-inset-bottom)) !important;
+    animation: sheet-up 0.24s cubic-bezier(0.2, 0.8, 0.3, 1); overscroll-behavior: contain; position: relative;
+  }
+  .modal-card::before {
+    content: ""; display: block; width: 2.5rem; height: 0.28rem; border-radius: 999px; background: #cbc9c1;
+    margin: -0.6rem auto 0.9rem;
+  }
+}
+@keyframes sheet-up { from { transform: translateY(40px); opacity: 0; } }
+
+/* Hinweise unten statt alert() */
+.toast-stack {
+  position: fixed; left: 0; right: 0; bottom: calc(5rem + env(safe-area-inset-bottom)); z-index: 100;
+  display: flex; flex-direction: column; align-items: center; gap: 0.5rem; padding: 0 1rem; pointer-events: none;
+}
+@media (min-width: 1024px) { .toast-stack { bottom: 1.5rem; } }
+.toast {
+  max-width: 28rem; background: var(--ink); color: #fff; font-size: 0.875rem; line-height: 1.35; padding: 0.7rem 1rem;
+  border-radius: 0.8rem; box-shadow: 0 10px 30px -8px rgba(23, 31, 54, 0.5); white-space: pre-line; word-break: break-word;
+  animation: toast-in 0.2s ease-out; pointer-events: auto;
+}
+.toast button { margin-left: 0.75rem; font-weight: 700; color: rgb(var(--gold)); }
+.toast.out { opacity: 0; transform: translateY(6px); transition: opacity 0.25s, transform 0.25s; }
+@keyframes toast-in { from { opacity: 0; transform: translateY(8px); } }
+
+/* Offline-Hinweis */
+.offline-note { background: #fbf0d9; color: #8a5a0b; font-size: 0.8125rem; font-weight: 600; text-align: center; padding: 0.4rem 1rem; }
+
+@media (prefers-reduced-motion: reduce) {
+  .modal, .modal-card, .toast { animation: none !important; }
+}
