@@ -13,6 +13,7 @@
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <!-- Gemeinsames Design (Farben nach Kirchenjahr, Schriften) -->
     <script src="theme.js"></script>
+    <script src="qrcode.js"></script>
     <link rel="stylesheet" href="theme.css" />
     <style>
       input, select, textarea { max-width: 100%; min-width: 0; }
@@ -116,6 +117,7 @@
           <button class="nav-item" data-tab="messdiener" onclick="switchTab('messdiener')"><span data-icon="users"></span>Messdiener</button>
           <button class="nav-item" data-tab="gottesdienste" onclick="switchTab('gottesdienste')"><span data-icon="calendar"></span>Gottesdienste</button>
           <button class="nav-item" data-tab="einteilung" onclick="switchTab('einteilung')"><span data-icon="checklist"></span>Einteilung</button>
+          <button class="nav-item" data-tab="anwesenheit" onclick="switchTab('anwesenheit')"><span data-icon="check"></span>Anwesenheit</button>
           <button class="nav-item" data-tab="vorlagen" onclick="switchTab('vorlagen')"><span data-icon="layout"></span>Vorlagen</button>
           <button class="nav-item" data-tab="export" onclick="switchTab('export')"><span data-icon="export"></span>Export</button>
         </nav>
@@ -265,6 +267,47 @@
           </section>
 
           <!-- TAB: EXPORT -->
+          <!-- TAB: ANWESENHEIT -->
+          <section id="tab-anwesenheit" class="hidden space-y-6">
+            <div class="page-head">
+              <div>
+                <h2 class="page-title">Anwesenheit</h2>
+                <p class="page-sub">Wer wirklich da war. Minis checken in der Sakristei per QR-Code ein. Leiter tragen im Nachhinein beim jeweiligen Gottesdienst nach.</p>
+              </div>
+            </div>
+            <div class="panel panel-pad flex flex-col sm:flex-row gap-5 sm:items-center">
+              <div id="qr-box" class="shrink-0 w-40 h-40 bg-white border border-slate-200 rounded-xl p-2 flex items-center justify-center text-xs text-slate-400 text-center"></div>
+              <div class="min-w-0 flex-1 space-y-3">
+                <div>
+                  <p class="panel-title">QR-Code für die Sakristei</p>
+                  <p class="hint mt-1">Ausdrucken und aufhängen. Wer ihn scannt, meldet sich mit seiner PIN zum Dienst an. Einchecken geht ab 90 Minuten vor Beginn.</p>
+                </div>
+                <div class="flex flex-wrap gap-2">
+                  <button onclick="printAttendanceQr()" class="btn btn-primary btn-sm"><span data-icon="export"></span>QR-Code drucken</button>
+                  <button onclick="copyAttendanceUrl()" class="btn btn-secondary btn-sm"><span data-icon="copy"></span>Link kopieren</button>
+                  <button onclick="resetAttendanceKey()" class="btn btn-quiet btn-sm admin-only">Neuen Code erzeugen</button>
+                </div>
+              </div>
+            </div>
+            <div class="panel overflow-hidden">
+              <div class="px-5 pt-5 pb-3">
+                <p class="panel-title">Zuverlässigkeit</p>
+                <p id="att-stats-sub" class="hint mt-1">Letzte 90 Tage, nur Gottesdienste mit erfasster Anwesenheit.</p>
+              </div>
+              <table class="table-clean responsive-table">
+                <thead><tr><th>Name</th><th>Eingeteilt</th><th>Da</th><th>Quote</th><th>Zusätzlich da</th></tr></thead>
+                <tbody id="att-stats-body"></tbody>
+              </table>
+            </div>
+            <div class="panel overflow-hidden">
+              <div class="px-5 pt-5 pb-3">
+                <p class="panel-title">Letzte Gottesdienste</p>
+                <p class="hint mt-1">Klicke auf einen Gottesdienst, um Anwesenheit nachzutragen.</p>
+              </div>
+              <div id="att-recent"></div>
+            </div>
+          </section>
+
           <section id="tab-export" class="hidden space-y-6">
             <div class="page-head">
               <div>
@@ -289,7 +332,8 @@
         <button data-tab="dashboard" aria-current="page" onclick="switchTab('dashboard')"><span data-icon="home"></span>Übersicht</button>
         <button data-tab="messdiener" onclick="switchTab('messdiener')"><span data-icon="users"></span>Minis</button>
         <button data-tab="gottesdienste" onclick="switchTab('gottesdienste')"><span data-icon="calendar"></span>Messen</button>
-        <button data-tab="einteilung" onclick="switchTab('einteilung')"><span data-icon="checklist"></span>Einteilung</button>
+        <button data-tab="einteilung" onclick="switchTab('einteilung')"><span data-icon="checklist"></span>Planen</button>
+        <button data-tab="anwesenheit" onclick="switchTab('anwesenheit')"><span data-icon="check"></span>Dabei</button>
         <button data-tab="vorlagen" onclick="switchTab('vorlagen')"><span data-icon="layout"></span>Vorlagen</button>
         <button data-tab="export" onclick="switchTab('export')"><span data-icon="export"></span>Export</button>
       </nav>
@@ -405,6 +449,12 @@
           <div><label class="label" for="ge-juniors">Kinder (benötigt)</label><input type="number" id="ge-juniors" min="0" oninput="updateEditCounters()" class="field" /></div>
         </div>
 
+        <div id="ge-attendance" class="border-t border-slate-100 pt-4 hidden">
+          <h4 class="serif text-lg font-semibold text-slate-900">Anwesenheit</h4>
+          <p class="hint mt-1 mb-3">Wer war wirklich da? Änderungen gelten sofort.</p>
+          <div id="ge-attendance-list" class="border border-slate-200 rounded-xl p-2 max-h-56 overflow-y-auto"></div>
+        </div>
+
         <div class="border-t border-slate-100 pt-4">
           <h4 class="serif text-lg font-semibold text-slate-900">Anmeldung per Link</h4>
           <p class="hint mt-1 mb-3">Für Beerdigungen, Hochzeiten und Ähnliches: Minis mit Zeit tragen sich über einen Link selbst ein.</p>
@@ -452,7 +502,7 @@
       const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndrZWNjbnFxdXF3c3piamhkZnFvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTI3NjYwNzcsImV4cCI6MjEwODM0MjA3N30.FhbXCHfHV0H0vBp5GVF9J-vADXJ65eJ61-OMjQ2-PpY";
 
       let supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-      let state = { messdiener: [], gottesdienste: [], assignments: {}, absences: [], pins: {}, signups: {} };
+      let state = { messdiener: [], gottesdienste: [], assignments: {}, absences: [], pins: {}, signups: {}, attendance: {}, attendanceKey: null };
       let activeUserId = null;
 
       // ---------- Icons und Kalenderblatt ----------
@@ -465,6 +515,7 @@
         export: '<path d="M12 15V4m0 0L8 8m4-4 4 4"/><path d="M5 13.5V19a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-5.5"/>',
         logout: '<path d="M9.5 4.5H6a1.5 1.5 0 0 0-1.5 1.5v12A1.5 1.5 0 0 0 6 19.5h3.5"/><path d="M15.5 8 19.5 12l-4 4M19.5 12h-10"/>',
         plus: '<path d="M12 5v14M5 12h14"/>',
+        check: '<circle cx="12" cy="12" r="8.5"/><path d="m8.2 12.4 2.6 2.6 5-5.4"/>',
         copy: '<rect x="8.5" y="8.5" width="11" height="11" rx="2"/><path d="M15.5 8.5V6A1.5 1.5 0 0 0 14 4.5H6A1.5 1.5 0 0 0 4.5 6v8A1.5 1.5 0 0 0 6 15.5h2.5"/>',
         key: '<circle cx="8" cy="15.5" r="3.5"/><path d="m10.5 13 8-8M16 7.5l2.5 2.5M14 9.5l2 2"/>',
       };
@@ -592,7 +643,7 @@
           appContent.classList.add("hidden");
           appContent.classList.remove("flex");
           loginScreen.classList.remove("hidden");
-          state = { messdiener: [], gottesdienste: [], assignments: {}, absences: [], pins: {}, signups: {} };
+          state = { messdiener: [], gottesdienste: [], assignments: {}, absences: [], pins: {}, signups: {}, attendance: {}, attendanceKey: null };
         }
       });
 
@@ -631,6 +682,11 @@
         const { data: abData } = await supabaseClient.from("abwesenheiten").select("*");
         const { data: pinData } = await supabaseClient.from("mini_pins").select("messdiener_id, pin");
         const { data: signData } = await supabaseClient.from("anmeldungen").select("gottesdienst_id, messdiener_id");
+        const { data: attData } = await supabaseClient.from("anwesenheit").select("gottesdienst_id, messdiener_id, zeit, quelle");
+        const { data: setData } = await supabaseClient.from("einstellungen").select("schluessel, wert").eq("schluessel", "sakristei_key");
+        state.attendance = {};
+        (attData || []).forEach(r => { (state.attendance[String(r.gottesdienst_id)] = state.attendance[String(r.gottesdienst_id)] || {})[String(r.messdiener_id)] = { zeit: r.zeit, quelle: r.quelle }; });
+        state.attendanceKey = (setData && setData[0]) ? setData[0].wert : null;
         state.signups = {};
         (signData || []).forEach(r => { (state.signups[String(r.gottesdienst_id)] = state.signups[String(r.gottesdienst_id)] || []).push(String(r.messdiener_id)); });
 
@@ -650,7 +706,7 @@
       }
 
       function switchTab(tabId) {
-        ['dashboard', 'messdiener', 'gottesdienste', 'einteilung', 'vorlagen', 'export'].forEach(t => {
+        ['dashboard', 'messdiener', 'gottesdienste', 'einteilung', 'anwesenheit', 'vorlagen', 'export'].forEach(t => {
           document.getElementById('tab-' + t).classList.toggle('hidden', t !== tabId);
         });
         document.querySelectorAll('[data-tab]').forEach(b => {
@@ -660,6 +716,7 @@
 
         if (tabId === 'export') generateWhatsAppExport();
         if (tabId === 'vorlagen') renderTemplateCards();
+        if (tabId === 'anwesenheit') renderAttendanceTab();
       }
 
       function renderAll() {
@@ -933,6 +990,138 @@
         modal.classList.add('flex');
         renderSignupBox();
         refreshSignups();
+        renderAttendanceBox();
+      }
+
+      // ---------- Anwesenheit ----------
+      function attendanceUrl() {
+        if (!state.attendanceKey) return '';
+        const u = new URL('anwesenheit.html', location.href);
+        u.search = '?k=' + state.attendanceKey;
+        return u.href;
+      }
+
+      function qrSvg(text, opts) {
+        const q = qrcode(0, 'M');
+        q.addData(text);
+        q.make();
+        return q.createSvgTag(Object.assign({ scalable: true, margin: 0 }, opts || {}));
+      }
+
+      function attendanceOf(gid) { return state.attendance[String(gid)] || {}; }
+      function assignedIds(gid) {
+        const a = state.assignments[gid] || { seniors: [], juniors: [] };
+        return new Set([...(a.seniors || []), ...(a.juniors || [])].map(p => String(p.id)));
+      }
+
+      function renderAttendanceBox() {
+        const g = currentEditService();
+        const wrap = document.getElementById('ge-attendance');
+        if (!g) return;
+        const started = g.date <= todayString();
+        wrap.classList.toggle('hidden', !started);
+        if (!started) return;
+        const att = attendanceOf(g.id), assigned = assignedIds(g.id);
+        const people = [...state.messdiener].sort((a, b) => (assigned.has(String(b.id)) - assigned.has(String(a.id))) || a.name.localeCompare(b.name));
+        document.getElementById('ge-attendance-list').innerHTML = people.map(m => {
+          const rec = att[String(m.id)];
+          const tag = rec ? (rec.quelle === 'qr' ? `QR ${new Date(rec.zeit).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })}` : 'nachgetragen') : '';
+          return `<label class="flex items-center gap-2.5 text-sm py-1.5 px-1 rounded-md hover:bg-slate-50 cursor-pointer">
+            <input type="checkbox" ${rec ? 'checked' : ''} onchange="toggleAttendance('${escHtml(g.id)}', '${escHtml(m.id)}', this)" class="h-4 w-4" />
+            <span class="text-slate-800">${escHtml(m.name)}</span>
+            ${assigned.has(String(m.id)) ? '<span class="text-xs text-slate-500">eingeteilt</span>' : ''}
+            ${tag ? `<span class="text-xs text-brand-700 ml-auto">${escHtml(tag)}</span>` : ''}
+          </label>`;
+        }).join('');
+      }
+
+      async function toggleAttendance(gid, mid, box) {
+        box.disabled = true;
+        const key = String(gid);
+        let error;
+        if (box.checked) {
+          ({ error } = await supabaseClient.from('anwesenheit').upsert([{ gottesdienst_id: key, messdiener_id: String(mid), quelle: 'leiter' }]));
+          if (!error) { (state.attendance[key] = state.attendance[key] || {})[String(mid)] = { zeit: new Date().toISOString(), quelle: 'leiter' }; }
+        } else {
+          ({ error } = await supabaseClient.from('anwesenheit').delete().eq('gottesdienst_id', key).eq('messdiener_id', String(mid)));
+          if (!error && state.attendance[key]) delete state.attendance[key][String(mid)];
+        }
+        if (error) { alert('Das konnte nicht gespeichert werden. Wurde supabase/anwesenheit.sql schon ausgeführt?'); box.checked = !box.checked; }
+        box.disabled = false;
+        renderAttendanceBox();
+        renderAttendanceTab();
+      }
+
+      function renderAttendanceTab() {
+        const box = document.getElementById('qr-box');
+        const url = attendanceUrl();
+        box.innerHTML = url ? qrSvg(url) : 'QR-Code noch nicht eingerichtet (anwesenheit.sql ausführen)';
+
+        const today = todayString();
+        const limit = new Date(); limit.setDate(limit.getDate() - 90);
+        const limitIso = `${limit.getFullYear()}-${String(limit.getMonth() + 1).padStart(2, '0')}-${String(limit.getDate()).padStart(2, '0')}`;
+        const counted = state.gottesdienste.filter(g => g.date <= today && g.date >= limitIso && Object.keys(attendanceOf(g.id)).length > 0);
+        const rows = state.messdiener.map(m => {
+          const id = String(m.id);
+          let planned = 0, came = 0, extra = 0;
+          counted.forEach(g => {
+            const was = !!attendanceOf(g.id)[id], assigned = assignedIds(g.id).has(id);
+            if (assigned) { planned++; if (was) came++; } else if (was) extra++;
+          });
+          return { m, planned, came, extra };
+        }).filter(r => r.planned || r.extra).sort((a, b) => (a.planned ? a.came / a.planned : 2) - (b.planned ? b.came / b.planned : 2) || a.m.name.localeCompare(b.m.name));
+        document.getElementById('att-stats-sub').textContent = counted.length
+          ? `Letzte 90 Tage, ${counted.length} Gottesdienst${counted.length === 1 ? '' : 'e'} mit erfasster Anwesenheit.`
+          : 'Sobald die erste Anwesenheit erfasst ist, erscheint hier die Übersicht.';
+        document.getElementById('att-stats-body').innerHTML = rows.map(r => {
+          const quote = r.planned ? Math.round(100 * r.came / r.planned) : null;
+          return `<tr style="cursor:default">
+            <td data-label="Name" class="font-semibold text-slate-900">${escHtml(r.m.name)}</td>
+            <td data-label="Eingeteilt">${r.planned}</td>
+            <td data-label="Da">${r.came}</td>
+            <td data-label="Quote">${quote === null ? '<span class="text-slate-400">–</span>' : `<span class="${quote < 70 ? 'text-[#a02d25] font-semibold' : ''}">${quote} %</span>`}</td>
+            <td data-label="Zusätzlich da">${r.extra || '<span class="text-slate-400">–</span>'}</td>
+          </tr>`;
+        }).join('') || '<tr style="cursor:default"><td class="text-slate-500" style="padding:1.5rem 1rem">Noch keine Daten.</td></tr>';
+
+        const recent = state.gottesdienste.filter(g => g.date <= today).slice(-12).reverse();
+        document.getElementById('att-recent').innerHTML = recent.map(g => {
+          const att = attendanceOf(g.id), assigned = assignedIds(g.id);
+          const came = Object.keys(att).length;
+          const cameAssigned = [...assigned].filter(id => att[id]).length;
+          const text = came === 0 ? 'Noch keine Anwesenheit erfasst' : `${came} da${assigned.size ? `, davon ${cameAssigned} von ${assigned.size} Eingeteilten` : ''}`;
+          return `<div class="row" onclick="openGottesdienstEdit('${g.id}')" title="Zum Nachtragen klicken">
+            ${leafHtml(g.date, { special: isSpecialService(g) })}
+            <div class="min-w-0 flex-1"><p class="font-semibold text-slate-900">${escHtml(g.title)} <span class="font-normal text-slate-500">${formatTimeShort(g.time)}</span></p><p class="text-sm text-slate-500">${text}</p></div>
+          </div>`;
+        }).join('') || '<p class="px-5 py-6 text-sm text-slate-500">Noch keine vergangenen Gottesdienste.</p>';
+      }
+
+      function printAttendanceQr() {
+        const url = attendanceUrl();
+        if (!url) return alert('Der QR-Code ist noch nicht eingerichtet. Bitte supabase/anwesenheit.sql ausführen.');
+        document.getElementById('pdf-print-area').innerHTML = `<div style="text-align:center;padding-top:30px">
+          <h1 style="font-size:34px;color:#000">Ich bin da!</h1>
+          <p style="font-size:18px;margin:0 0 30px">QR-Code scannen, PIN eingeben und zum Dienst anmelden.</p>
+          <div style="width:380px;margin:0 auto">${qrSvg(url)}</div>
+          <p style="font-size:14px;margin-top:30px">Messdienst</p></div>`;
+        window.print();
+      }
+
+      async function copyAttendanceUrl() {
+        const url = attendanceUrl();
+        if (!url) return alert('Der QR-Code ist noch nicht eingerichtet. Bitte supabase/anwesenheit.sql ausführen.');
+        try { await navigator.clipboard.writeText(url); alert('Link kopiert:\n' + url); }
+        catch (e) { prompt('Link zum Kopieren:', url); }
+      }
+
+      async function resetAttendanceKey() {
+        if (!isAdmin()) return alert('Nur Admins können einen neuen Code erzeugen.');
+        if (!confirm('Der aufgehängte QR-Code funktioniert danach nicht mehr und muss neu ausgedruckt werden. Neuen Code erzeugen?')) return;
+        const { data, error } = await supabaseClient.rpc('attendance_key_reset');
+        if (error || !data) return alert('Das hat nicht geklappt.');
+        state.attendanceKey = data;
+        renderAttendanceTab();
       }
 
       // ---------- Anmeldung per Link ----------
