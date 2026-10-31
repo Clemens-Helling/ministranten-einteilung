@@ -65,8 +65,8 @@
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-title" content="Messdiener" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black" />
-    <link rel="apple-touch-icon" href="icons/apple-touch-icon.png" />
-    <link rel="icon" type="image/png" href="icons/icon-192.png" />
+    <link rel="apple-touch-icon" sizes="180x180" href="icons/apple-touch-icon.png" />
+    <link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png" />
   </head>
   <body class="min-h-screen flex flex-col">
 
@@ -631,7 +631,7 @@
       function icon(name, size) {
         if (name === 'mark') {
           const m = size || 32;
-          return `<svg viewBox="0 0 32 32" width="${m}" height="${m}" fill="none" stroke="#c9a14a" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><path d="M6 28V14a10 10 0 0 1 20 0v14z"/><path d="M16 10v13M11.5 15h9" stroke-width="1.9"/></svg>`;
+          return `<img src="icons/church-logo.png" width="${m}" height="${m}" alt="" aria-hidden="true" style="object-fit:contain">`;
         }
         const n = size || 20;
         return `<svg viewBox="0 0 24 24" width="${n}" height="${n}" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICON_PATHS[name] || ''}</svg>`;
