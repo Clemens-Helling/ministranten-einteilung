@@ -124,6 +124,7 @@
         <div class="mt-auto pt-6 border-t border-white/10">
           <p id="signed-in-email" class="px-2 text-xs text-slate-400 truncate"></p>
           <p id="role-label" class="px-2 text-xs text-slate-500 mb-2"></p>
+          <button class="nav-item" onclick="changeOwnPassword()"><span data-icon="key"></span>Passwort ändern</button>
           <button class="nav-item" onclick="cycleTheme()"><span data-icon="contrast"></span><span id="theme-label">Darstellung</span></button>
           <button class="nav-item" onclick="signOut()"><span data-icon="logout"></span>Abmelden</button>
         </div>
@@ -194,6 +195,17 @@
                 </thead>
                 <tbody id="messdiener-table-body"></tbody>
               </table>
+            </div>
+
+            <div id="users-panel" class="panel overflow-hidden admin-only">
+              <div class="px-5 pt-5 pb-3 flex flex-wrap items-end justify-between gap-3">
+                <div>
+                  <p class="panel-title">Leiter-Zugänge</p>
+                  <p class="hint mt-1">Wer sich in dieser App anmelden darf. Admins verwalten Messdiener, Leiter teilen nur ein.</p>
+                </div>
+                <button onclick="openUserModal()" class="btn btn-primary btn-sm"><span data-icon="plus"></span>Zugang anlegen</button>
+              </div>
+              <div id="users-list"></div>
             </div>
           </section>
 
@@ -427,6 +439,39 @@
     </div>
 
     <!-- MODAL: GOTTESDIENST BEARBEITEN -->
+    <div id="modal-user" class="modal fixed inset-0 bg-slate-900/50 backdrop-blur-sm hidden items-center justify-center p-4 z-50">
+      <div class="modal-card max-w-md w-full max-h-[92vh] overflow-y-auto p-6 space-y-4">
+        <h3 class="modal-title">Zugang anlegen</h3>
+        <div id="user-form" class="space-y-4">
+          <div><label class="label" for="u-email">E-Mail-Adresse</label><input type="email" id="u-email" class="field" autocomplete="off" placeholder="name@beispiel.de" /></div>
+          <div>
+            <label class="label" for="u-password">Passwort</label>
+            <div class="flex gap-2">
+              <input type="text" id="u-password" class="field font-mono" autocomplete="off" />
+              <button type="button" onclick="document.getElementById('u-password').value = randomPassword()" class="btn btn-secondary shrink-0">Erzeugen</button>
+            </div>
+            <p class="hint mt-1">Mindestens 8 Zeichen. Gib es der Person weiter, sie kann es später selbst ändern.</p>
+          </div>
+          <div>
+            <label class="label" for="u-role">Rolle</label>
+            <select id="u-role" class="field"><option value="leiter">Leiter: darf einteilen</option><option value="admin">Admin: darf zusätzlich Messdiener und Zugänge verwalten</option></select>
+          </div>
+          <div class="flex justify-end gap-2 pt-2">
+            <button onclick="closeModals()" class="btn btn-quiet">Abbrechen</button>
+            <button id="u-save" onclick="createUser()" class="btn btn-primary">Anlegen</button>
+          </div>
+        </div>
+        <div id="user-done" class="hidden space-y-4">
+          <p class="text-sm text-slate-700">Der Zugang ist angelegt. Gib die Zugangsdaten weiter, das Passwort wird nicht noch einmal angezeigt.</p>
+          <pre id="user-creds" class="field font-mono text-xs whitespace-pre-wrap break-all"></pre>
+          <div class="flex justify-end gap-2">
+            <button onclick="copyUserCreds()" class="btn btn-secondary">Kopieren</button>
+            <button onclick="closeModals()" class="btn btn-primary">Fertig</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <div id="modal-gottesdienst-edit" class="modal fixed inset-0 bg-slate-900/50 backdrop-blur-sm hidden items-center justify-center p-4 z-50">
       <div class="modal-card max-w-lg w-full max-h-[92vh] overflow-y-auto p-6 space-y-5">
         <h3 class="modal-title">Gottesdienst bearbeiten</h3>
@@ -779,6 +824,7 @@
         if (tabId === 'export') generateWhatsAppExport();
         if (tabId === 'vorlagen') renderTemplateCards();
         if (tabId === 'anwesenheit') renderAttendanceTab();
+        if (tabId === 'messdiener') loadUsers();
       }
 
       function renderAll() {
@@ -1053,6 +1099,113 @@
         renderSignupBox();
         refreshSignups();
         renderAttendanceBox();
+      }
+
+      // ---------- Leiter-Zugänge (nur Admins, über die Edge Function "benutzer") ----------
+      // Name der Edge Function; steht im Supabase-Dashboard unter Edge Functions in der URL-Spalte
+      const USERS_FUNCTION = 'benutzer';
+      let users = [];
+
+      async function userApi(body) {
+        const { data, error } = await supabaseClient.functions.invoke(USERS_FUNCTION, { body });
+        if (error && !data) {
+          let msg = 'Die Verwaltung ist nicht erreichbar. Wurde die Edge Function "' + USERS_FUNCTION + '" bereitgestellt?';
+          try { const j = await error.context.json(); if (j && j.error) msg = j.error; } catch (e) {}
+          return { ok: false, error: msg };
+        }
+        return data || { ok: false, error: 'Keine Antwort.' };
+      }
+
+      function randomPassword() {
+        const chars = 'abcdefghjkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+        const bytes = crypto.getRandomValues(new Uint8Array(12));
+        return Array.from(bytes, b => chars[b % chars.length]).join('');
+      }
+
+      function shortDate(iso) { return iso ? new Date(iso).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' }) : ''; }
+
+      async function loadUsers() {
+        if (!isAdmin()) return;
+        const box = document.getElementById('users-list');
+        const res = await userApi({ action: 'list' });
+        if (!res.ok) { box.innerHTML = `<p class="px-5 pb-5 text-sm text-slate-500">${escHtml(res.error)}</p>`; return; }
+        users = res.users;
+        box.innerHTML = users.map(u => `
+          <div class="row row-static flex-wrap">
+            <div class="min-w-0 flex-1">
+              <p class="font-semibold text-slate-900 break-all">${escHtml(u.email)}${u.self ? ' <span class="font-normal text-slate-500">(du)</span>' : ''}</p>
+              <p class="text-xs text-slate-500">${u.last_sign_in_at ? 'Zuletzt angemeldet am ' + shortDate(u.last_sign_in_at) : 'Noch nie angemeldet'}</p>
+            </div>
+            <select class="field" style="width:auto" onchange="setUserRole('${escHtml(u.email)}', this.value)" aria-label="Rolle von ${escHtml(u.email)}">
+              <option value="leiter" ${u.rolle === 'leiter' ? 'selected' : ''}>Leiter</option>
+              <option value="admin" ${u.rolle === 'admin' ? 'selected' : ''}>Admin</option>
+            </select>
+            <button class="btn btn-secondary btn-sm" onclick="resetUserPassword('${escHtml(u.id)}')">Neues Passwort</button>
+            ${u.self ? '' : `<button class="btn btn-danger btn-sm" onclick="deleteUser('${escHtml(u.id)}')">Löschen</button>`}
+          </div>`).join('') || '<p class="px-5 pb-5 text-sm text-slate-500">Noch keine Zugänge.</p>';
+      }
+
+      function openUserModal() {
+        document.getElementById('u-email').value = '';
+        document.getElementById('u-password').value = randomPassword();
+        document.getElementById('u-role').value = 'leiter';
+        document.getElementById('user-form').classList.remove('hidden');
+        document.getElementById('user-done').classList.add('hidden');
+        const modal = document.getElementById('modal-user');
+        modal.classList.remove('hidden'); modal.classList.add('flex');
+      }
+
+      async function createUser() {
+        const email = document.getElementById('u-email').value.trim().toLowerCase();
+        const password = document.getElementById('u-password').value;
+        const rolle = document.getElementById('u-role').value;
+        const btn = document.getElementById('u-save');
+        btn.disabled = true;
+        const res = await userApi({ action: 'create', email, password, rolle });
+        btn.disabled = false;
+        if (!res.ok) return alert(res.error);
+        document.getElementById('user-creds').textContent = `Adresse: ${new URL('index.html', location.href).href}\nE-Mail: ${email}\nPasswort: ${password}`;
+        document.getElementById('user-form').classList.add('hidden');
+        document.getElementById('user-done').classList.remove('hidden');
+        loadUsers();
+      }
+
+      async function copyUserCreds() {
+        const text = document.getElementById('user-creds').textContent;
+        try { await navigator.clipboard.writeText(text); alert('Zugangsdaten kopiert.'); }
+        catch (e) { prompt('Zugangsdaten zum Kopieren:', text); }
+      }
+
+      async function setUserRole(email, rolle) {
+        const res = await userApi({ action: 'set_role', email, rolle });
+        if (!res.ok) alert(res.error);
+        loadUsers();
+      }
+
+      async function resetUserPassword(id) {
+        const pw = randomPassword();
+        const u = users.find(x => x.id === id);
+        if (!u || !confirm(`Für ${u.email} ein neues Passwort setzen? Das alte gilt dann nicht mehr.`)) return;
+        const res = await userApi({ action: 'reset_password', id, password: pw });
+        if (!res.ok) return alert(res.error);
+        prompt(`Neues Passwort für ${u.email} (bitte weitergeben):`, pw);
+      }
+
+      async function deleteUser(id) {
+        const u = users.find(x => x.id === id);
+        if (!u || !confirm(`Zugang von ${u.email} löschen? Die Person kann sich danach nicht mehr anmelden.`)) return;
+        const res = await userApi({ action: 'delete', id });
+        if (!res.ok) alert(res.error);
+        loadUsers();
+      }
+
+      // Eigenes Passwort ändern (jeder angemeldete Leiter)
+      async function changeOwnPassword() {
+        const pw = prompt('Neues Passwort (mindestens 8 Zeichen):');
+        if (pw === null) return;
+        if (pw.length < 8) return alert('Das Passwort braucht mindestens 8 Zeichen.');
+        const { error } = await supabaseClient.auth.updateUser({ password: pw });
+        alert(error ? 'Das hat nicht geklappt: ' + error.message : 'Passwort geändert.');
       }
 
       // ---------- Anwesenheit ----------
