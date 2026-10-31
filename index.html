@@ -49,7 +49,8 @@
         #pdf-print-area .slips { display: grid; grid-template-columns: repeat(2, 90mm); grid-auto-rows: 62mm; gap: 0; justify-content: center; }
         #pdf-print-area .slip { box-sizing: border-box; width: 90mm; height: 62mm; border: 0.3mm dashed #555; padding: 5mm 5mm 4mm; display: flex; gap: 4mm; break-inside: avoid; font-family: Calibri, Arial, sans-serif; }
         #pdf-print-area .slip-text { flex: 1; min-width: 0; display: flex; flex-direction: column; }
-        #pdf-print-area .slip-kicker { font-size: 8pt; color: #555; margin: 0; }
+        #pdf-print-area .slip-kicker { font-size: 8pt; color: #555; margin: 0; display: flex; align-items: center; gap: 2mm; }
+        #pdf-print-area .slip-logo { width: 8mm; height: 8mm; border-radius: 1.5mm; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
         #pdf-print-area .slip-name { font-size: 15pt; font-weight: bold; line-height: 1.15; margin: 1mm 0 3mm; word-break: break-word; }
         #pdf-print-area .slip-pin-label { font-size: 8pt; color: #555; margin: 0; }
         #pdf-print-area .slip-pin { font: bold 22pt "Courier New", monospace; letter-spacing: 3pt; margin: 0 0 3mm; }
@@ -60,7 +61,7 @@
       }
     </style>
       <link rel="manifest" href="manifest.webmanifest" />
-    <meta name="theme-color" content="#171F36" />
+    <meta name="theme-color" content="#255198" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-title" content="Messdiener" />
@@ -79,8 +80,8 @@
     <section id="login-screen" class="flex flex-1 flex-col md:flex-row">
       <div class="login-art md:w-[44%] px-6 py-6 md:p-14 flex flex-col justify-between md:min-h-screen">
         <div class="relative z-10 flex items-center gap-3">
-          <span data-icon="mark"></span>
-          <span class="serif text-xl font-semibold">Messdiener-Manager</span>
+          <img src="icons/logo-192.png" alt="" width="52" height="52" class="rounded-xl shrink-0" />
+          <span class="serif text-xl font-semibold">Ministranten Gurtweil</span>
         </div>
         <svg class="absolute right-[-5rem] top-28 w-[22rem] max-w-none opacity-40 hidden md:block" viewBox="0 0 200 240" fill="none" stroke="rgb(181 138 42)" stroke-width="1.2" aria-hidden="true">
           <path d="M20 236V100a80 80 0 0 1 160 0v136z"/><path d="M42 236V102a58 58 0 0 1 116 0v134z"/><path d="M64 236V104a36 36 0 0 1 72 0v132z"/>
@@ -116,7 +117,7 @@
       <!-- Seitenleiste (Desktop) -->
       <aside class="sidebar">
         <div class="flex items-center gap-3 px-2 pb-8">
-          <span data-icon="mark"></span>
+          <img src="icons/logo-192.png" alt="" width="44" height="44" class="rounded-xl shrink-0" />
           <div class="min-w-0">
             <p class="serif text-[1.1rem] font-semibold text-white leading-tight whitespace-nowrap">Messdiener-Manager</p>
             <p class="flex items-center gap-2 text-xs text-slate-400 mt-1"><span class="season-dot"></span><span id="season-label"></span></p>
@@ -143,7 +144,7 @@
       <!-- Kopfzeile (Handy) -->
       <header class="mobile-top">
         <div class="flex items-center gap-2.5">
-          <span data-icon="mark" data-size="26"></span>
+          <img src="icons/logo-192.png" alt="" width="32" height="32" class="rounded-lg shrink-0" />
           <span class="serif text-lg font-semibold">Messdiener-Manager</span>
         </div>
         <div class="flex items-center">
@@ -1164,7 +1165,7 @@
           const m = state.messdiener.find(x => String(x.id) === id);
           return `<div class="slip">
             <div class="slip-text">
-              <p class="slip-kicker">Messdienst</p>
+              <p class="slip-kicker"><img src="${new URL('icons/logo-192.png', location.href).href}" alt="" class="slip-logo" />Ministranten Gurtweil</p>
               <p class="slip-name">${escHtml(m.name)}</p>
               <p class="slip-pin-label">Deine PIN</p>
               <p class="slip-pin">${escHtml(state.pins[id])}</p>
