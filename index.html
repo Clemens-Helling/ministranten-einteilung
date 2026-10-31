@@ -46,6 +46,16 @@
         #pdf-print-area .c-date { text-align: center; white-space: nowrap; }
         #pdf-print-area .c-time { white-space: nowrap; }
         #pdf-print-area tr { break-inside: avoid; }
+        #pdf-print-area .slips { display: grid; grid-template-columns: repeat(2, 90mm); grid-auto-rows: 62mm; gap: 0; justify-content: center; }
+        #pdf-print-area .slip { box-sizing: border-box; width: 90mm; height: 62mm; border: 0.3mm dashed #555; padding: 5mm 5mm 4mm; display: flex; gap: 4mm; break-inside: avoid; font-family: Calibri, Arial, sans-serif; }
+        #pdf-print-area .slip-text { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+        #pdf-print-area .slip-kicker { font-size: 8pt; color: #555; margin: 0; }
+        #pdf-print-area .slip-name { font-size: 15pt; font-weight: bold; line-height: 1.15; margin: 1mm 0 3mm; word-break: break-word; }
+        #pdf-print-area .slip-pin-label { font-size: 8pt; color: #555; margin: 0; }
+        #pdf-print-area .slip-pin { font: bold 22pt "Courier New", monospace; letter-spacing: 3pt; margin: 0 0 3mm; }
+        #pdf-print-area .slip-help { font-size: 7.5pt; line-height: 1.3; color: #333; margin: auto 0 0; }
+        #pdf-print-area .slip-qr { width: 30mm; flex: none; align-self: center; text-align: center; font-size: 7pt; color: #555; }
+        #pdf-print-area .slip-qr svg { width: 30mm; height: 30mm; display: block; margin-bottom: 1mm; }
         #pdf-print-area tr.special td { font-weight: bold; font-style: italic; }
       }
     </style>
@@ -170,6 +180,7 @@
                 <p class="page-sub">Wer dabei ist, an welchen Tagen sie können und mit wem sie zusammen eingeteilt werden.</p>
               </div>
               <div id="admin-actions" class="admin-only flex flex-wrap gap-2">
+                <button onclick="openSlipsModal()" class="btn btn-secondary"><span data-icon="export"></span>Zettel drucken</button>
                 <button onclick="generateMissingPins()" class="btn btn-secondary"><span data-icon="key"></span>Fehlende PINs erzeugen</button>
                 <button onclick="openMessdienerModal()" class="btn btn-primary"><span data-icon="plus"></span>Messdiener hinzufügen</button>
               </div>
@@ -397,7 +408,7 @@
             <input type="text" id="m-pin" inputmode="numeric" maxlength="4" placeholder="4 Ziffern" class="field w-32 font-mono tracking-widest" />
             <button type="button" onclick="document.getElementById('m-pin').value = randomPin()" class="btn btn-secondary">Neu erzeugen</button>
           </div>
-          <p class="hint mt-1.5">Diese PIN teilst du dem Mini mit. Leer lassen: eine vorhandene PIN bleibt, sonst wird automatisch eine erzeugt.</p>
+          <p id="m-pin-note" class="hint mt-1.5"></p>
         </div>
         <div class="flex justify-end gap-2 pt-4 border-t border-slate-100">
           <button onclick="closeModals()" class="btn btn-quiet">Abbrechen</button>
@@ -439,6 +450,22 @@
     </div>
 
     <!-- MODAL: GOTTESDIENST BEARBEITEN -->
+    <div id="modal-slips" class="modal fixed inset-0 bg-slate-900/50 backdrop-blur-sm hidden items-center justify-center p-4 z-50">
+      <div class="modal-card max-w-md w-full max-h-[92vh] overflow-y-auto p-6 space-y-4">
+        <h3 class="modal-title">Zettel drucken</h3>
+        <p class="hint">Schneidefertige Zettel mit Name, PIN und QR-Code zur Mini-Seite für die erste Anmeldung. Acht Zettel pro A4-Seite. Im Druckdialog kannst du auch „Als PDF speichern" wählen.</p>
+        <div class="flex justify-between items-center">
+          <span id="slips-count" class="text-sm text-slate-600"></span>
+          <button type="button" onclick="toggleAllSlips()" class="btn btn-quiet btn-sm">Alle an/aus</button>
+        </div>
+        <div id="slips-list" class="border border-slate-200 rounded-xl p-2 max-h-72 overflow-y-auto"></div>
+        <div class="flex justify-end gap-2 pt-2">
+          <button onclick="closeModals()" class="btn btn-quiet">Abbrechen</button>
+          <button onclick="printSlips()" class="btn btn-primary"><span data-icon="export"></span>Drucken / PDF</button>
+        </div>
+      </div>
+    </div>
+
     <div id="modal-user" class="modal fixed inset-0 bg-slate-900/50 backdrop-blur-sm hidden items-center justify-center p-4 z-50">
       <div class="modal-card max-w-md w-full max-h-[92vh] overflow-y-auto p-6 space-y-4">
         <h3 class="modal-title">Zugang anlegen</h3>
@@ -551,7 +578,7 @@
       const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndrZWNjbnFxdXF3c3piamhkZnFvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTI3NjYwNzcsImV4cCI6MjEwODM0MjA3N30.FhbXCHfHV0H0vBp5GVF9J-vADXJ65eJ61-OMjQ2-PpY";
 
       let supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-      let state = { messdiener: [], gottesdienste: [], assignments: {}, absences: [], pins: {}, signups: {}, attendance: {}, attendanceKey: null };
+      let state = { messdiener: [], gottesdienste: [], assignments: {}, absences: [], pins: {}, pinChanged: {}, signups: {}, attendance: {}, attendanceKey: null };
       let activeUserId = null;
 
       // Hinweise erscheinen unten als kurze Meldung statt als Browser-Fenster
@@ -737,7 +764,7 @@
           appContent.classList.add("hidden");
           appContent.classList.remove("flex");
           loginScreen.classList.remove("hidden");
-          state = { messdiener: [], gottesdienste: [], assignments: {}, absences: [], pins: {}, signups: {}, attendance: {}, attendanceKey: null };
+          state = { messdiener: [], gottesdienste: [], assignments: {}, absences: [], pins: {}, pinChanged: {}, signups: {}, attendance: {}, attendanceKey: null };
         }
       });
 
@@ -774,7 +801,8 @@
         const { data: aData } = await supabaseClient.from("assignments").select("*");
         // Optional: Tabellen der Abwesenheits-Funktion (fehlen sie noch, bleibt alles leer)
         const { data: abData } = await supabaseClient.from("abwesenheiten").select("*");
-        const { data: pinData } = await supabaseClient.from("mini_pins").select("messdiener_id, pin");
+        let { data: pinData, error: pinErr } = await supabaseClient.from("mini_pins").select("messdiener_id, pin, pin_geaendert");
+        if (pinErr) ({ data: pinData } = await supabaseClient.from("mini_pins").select("messdiener_id, pin")); // SQL noch nicht aktualisiert
         const { data: signData } = await supabaseClient.from("anmeldungen").select("gottesdienst_id, messdiener_id");
         const { data: attData } = await supabaseClient.from("anwesenheit").select("gottesdienst_id, messdiener_id, zeit, quelle");
         const { data: setData } = await supabaseClient.from("einstellungen").select("schluessel, wert").eq("schluessel", "sakristei_key");
@@ -798,7 +826,12 @@
         setOffline(null);
         state.absences = abData || [];
         state.pins = {};
-        (pinData || []).forEach(r => { state.pins[String(r.messdiener_id)] = r.pin; });
+        state.pinChanged = {};
+        (pinData || []).forEach(r => {
+          // Selbst geänderte PINs sind nur noch ein Hash und werden nie angezeigt
+          if (r.pin_geaendert) state.pinChanged[String(r.messdiener_id)] = true;
+          else state.pins[String(r.messdiener_id)] = r.pin;
+        });
         if (mData) state.messdiener = mData;
         if (gData) state.gottesdienste = sortGottesdiensteByDate(gData);
         
@@ -843,7 +876,7 @@
             <td data-label="Rolle"><span class="inline-flex items-center gap-2"><span class="dot ${m.type === 'Senior' ? 'dot-senior' : 'dot-junior'}"></span>${m.type === 'Senior' ? 'Leiter' : 'Kind'}</span></td>
             <td data-label="Verfügbar"><span class="inline-flex flex-wrap gap-1">${days || '<span class="text-slate-400">–</span>'}</span></td>
             <td data-label="Zusammen mit">${partnerNames(m) || '<span class="text-slate-400">–</span>'}</td>
-            <td data-label="PIN" class="font-mono tracking-widest admin-only">${pin ? escHtml(pin) : '<span class="text-slate-400">–</span>'}</td>
+            <td data-label="PIN" class="admin-only" onclick="event.stopPropagation()">${pinCellHtml(m.id)}</td>
             <td class="text-right cell-actions admin-only"><button onclick="event.stopPropagation(); deleteMessdiener('${m.id}')" class="btn btn-danger btn-sm">Löschen</button></td>
           </tr>`;
         }).join('') || '<tr style="cursor:default"><td class="text-slate-500" style="padding:1.5rem 1rem">Noch keine Messdiener angelegt.' + (admin ? ' Lege den ersten mit „Messdiener hinzufügen" an.' : '') + '</td></tr>';
@@ -1099,6 +1132,50 @@
         renderSignupBox();
         refreshSignups();
         renderAttendanceBox();
+      }
+
+      // ---------- Zettel für die erste Anmeldung ----------
+      function slipUrl(id) {
+        const u = new URL('mini.html', location.href);
+        u.search = '?m=' + encodeURIComponent(id); u.hash = '';
+        return u.href;
+      }
+      function openSlipsModal() {
+        if (!isAdmin()) return alert('Nur Admins dürfen Messdiener verwalten.');
+        document.getElementById('slips-list').innerHTML = state.messdiener.map(m => {
+          const sid = String(m.id), ok = !!state.pins[sid];
+          const note = state.pinChanged[sid] ? 'PIN selbst geändert, erst mit „Neu" zurücksetzen' : (ok ? '' : 'noch keine PIN');
+          return `<label class="flex items-center gap-2.5 text-sm py-1.5 px-1 rounded-md ${ok ? 'hover:bg-slate-50 cursor-pointer' : 'opacity-60'}">
+            <input type="checkbox" value="${escHtml(sid)}" ${ok ? 'checked' : 'disabled'} onchange="updateSlipCount()" class="h-4 w-4" />
+            <span class="text-slate-800">${escHtml(m.name)}</span>${note ? `<span class="text-xs text-amber-700 ml-auto text-right">${note}</span>` : ''}
+          </label>`;
+        }).join('');
+        updateSlipCount();
+        const modal = document.getElementById('modal-slips');
+        modal.classList.remove('hidden'); modal.classList.add('flex');
+      }
+      function slipBoxes() { return Array.from(document.querySelectorAll('#slips-list input[type=checkbox]:not(:disabled)')); }
+      function updateSlipCount() { const n = slipBoxes().filter(b => b.checked).length; document.getElementById('slips-count').textContent = `${n} Zettel ausgewählt`; }
+      function toggleAllSlips() { const boxes = slipBoxes(), all = boxes.every(b => b.checked); boxes.forEach(b => { b.checked = !all; }); updateSlipCount(); }
+      function printSlips() {
+        const ids = slipBoxes().filter(b => b.checked).map(b => b.value);
+        if (!ids.length) return alert('Bitte wähle mindestens einen Mini aus.');
+        const slips = ids.map(id => {
+          const m = state.messdiener.find(x => String(x.id) === id);
+          return `<div class="slip">
+            <div class="slip-text">
+              <p class="slip-kicker">Messdienst</p>
+              <p class="slip-name">${escHtml(m.name)}</p>
+              <p class="slip-pin-label">Deine PIN</p>
+              <p class="slip-pin">${escHtml(state.pins[id])}</p>
+              <p class="slip-help">QR-Code scannen, deinen Namen und die PIN eingeben. Danach kannst du eine eigene PIN wählen.</p>
+            </div>
+            <div class="slip-qr">${qrSvg(slipUrl(id))}Zur Mini-Seite</div>
+          </div>`;
+        }).join('');
+        document.getElementById('pdf-print-area').innerHTML = `<div class="slips">${slips}</div>`;
+        closeModals();
+        window.print();
       }
 
       // ---------- Leiter-Zugänge (nur Admins, über die Edge Function "benutzer") ----------
@@ -1537,7 +1614,11 @@
         document.getElementById('m-type').value = m ? m.type : 'Senior';
         document.querySelectorAll('#m-days input').forEach(cb => { cb.checked = !!m && (m.days || []).includes(parseInt(cb.value)); });
         renderPartnerOptions(m);
-        document.getElementById('m-pin').value = m ? (state.pins[String(m.id)] || '') : '';
+        document.getElementById('m-pin').value = '';
+        document.getElementById('m-pin').placeholder = m && (state.pins[String(m.id)] || state.pinChanged[String(m.id)]) ? 'unverändert' : '4 Ziffern';
+        document.getElementById('m-pin-note').textContent = m && state.pinChanged[String(m.id)]
+          ? 'Dieser Mini hat seine PIN selbst geändert. Du kannst sie nicht sehen, aber mit „Neu erzeugen" eine neue vergeben.'
+          : 'Diese PIN teilst du dem Mini mit. Leer lassen: eine vorhandene PIN bleibt, sonst wird automatisch eine erzeugt.';
         document.getElementById('modal-messdiener').classList.remove('hidden');
         document.getElementById('modal-messdiener').classList.add('flex');
       }
@@ -1701,6 +1782,30 @@
         return (m.days || []).includes(dow) && !isAbsent(m, dateStr);
       }
 
+      // PIN-Spalte: standardmäßig verdeckt; selbst geänderte PINs sind für Leiter nicht lesbar
+      const revealedPins = new Set();
+      function pinCellHtml(id) {
+        const sid = String(id), pin = state.pins[sid];
+        const reset = `<button class="btn btn-quiet btn-sm" onclick="resetPin('${escHtml(sid)}')">Neu</button>`;
+        if (state.pinChanged[sid]) return `<span class="inline-flex items-center gap-2"><span class="badge badge-ok">selbst geändert</span>${reset}</span>`;
+        if (!pin) return '<span class="text-slate-400">–</span>';
+        const shown = revealedPins.has(sid);
+        return `<span class="inline-flex items-center gap-2"><button class="font-mono tracking-widest" onclick="togglePin('${escHtml(sid)}')" title="${shown ? 'Verbergen' : 'Anzeigen'}" aria-label="PIN ${shown ? 'verbergen' : 'anzeigen'}">${shown ? escHtml(pin) : '••••'}</button>${reset}</span>`;
+      }
+      function togglePin(id) { revealedPins.has(id) ? revealedPins.delete(id) : revealedPins.add(id); renderAll(); }
+
+      async function resetPin(id) {
+        if (!isAdmin()) return alert('Nur Admins dürfen Messdiener verwalten.');
+        const m = state.messdiener.find(x => String(x.id) === String(id));
+        if (!m || !confirm(`Für ${m.name} eine neue PIN erzeugen? Die bisherige gilt dann nicht mehr.`)) return;
+        const pin = randomPin();
+        const { error } = await supabaseClient.from('mini_pins').upsert([{ messdiener_id: String(id), pin, pin_geaendert: false, failed_attempts: 0, locked_until: null }]);
+        if (error) return alert('Die PIN konnte nicht gespeichert werden: ' + error.message);
+        revealedPins.add(String(id));
+        await loadDataFromDB();
+        alert(`Neue PIN für ${m.name}: ${pin}`);
+      }
+
       function randomPin() {
         return String(crypto.getRandomValues(new Uint32Array(1))[0] % 10000).padStart(4, '0');
       }
@@ -1719,14 +1824,14 @@
 
       async function generateMissingPins() {
         if (!isAdmin()) return alert('Nur Admins dürfen Messdiener verwalten.');
-        const missing = state.messdiener.filter(m => !state.pins[String(m.id)]);
+        const missing = state.messdiener.filter(m => !state.pins[String(m.id)] && !state.pinChanged[String(m.id)]);
         if (missing.length === 0) return alert('Alle Minis haben bereits eine PIN.');
         if (!confirm(`Für ${missing.length} Mini(s) ohne PIN jetzt eine PIN erzeugen?`)) return;
-        const rows = missing.map(m => ({ messdiener_id: String(m.id), pin: randomPin(), failed_attempts: 0, locked_until: null }));
+        const rows = missing.map(m => ({ messdiener_id: String(m.id), pin: randomPin(), pin_geaendert: false, failed_attempts: 0, locked_until: null }));
         const { error } = await supabaseClient.from('mini_pins').upsert(rows);
         if (error) return alert('PINs konnten nicht gespeichert werden: ' + error.message + '\n\nHast du das SQL aus supabase/abwesenheiten.sql in Supabase ausgeführt?');
         await loadDataFromDB();
-        alert(`${rows.length} PIN(s) erzeugt. Du siehst sie in der Spalte „PIN".`);
+        alert(`${rows.length} PIN(s) erzeugt. Zum Anzeigen tippst du in der Spalte „PIN" auf die Punkte, oder du druckst Zettel.`);
       }
 
       // ---------- Partner (gemeinsam einteilen) ----------
@@ -1905,10 +2010,11 @@
 
         // PIN speichern (leer = vorhandene behalten, sonst neu erzeugen)
         const existingPin = state.pins[String(savedId)];
-        const pin = pinInput || existingPin || randomPin();
-        if (pin !== existingPin) {
+        const hasChangedPin = !!state.pinChanged[String(savedId)];
+        const pin = pinInput || existingPin || (hasChangedPin ? null : randomPin());
+        if (pin && pin !== existingPin) {
           const { error: pinError } = await supabaseClient.from('mini_pins')
-            .upsert([{ messdiener_id: String(savedId), pin, failed_attempts: 0, locked_until: null }]);
+            .upsert([{ messdiener_id: String(savedId), pin, pin_geaendert: false, failed_attempts: 0, locked_until: null }]);
           if (pinError) alert('Der Mini wurde gespeichert, die PIN aber nicht: ' + pinError.message + '\n\nHast du das SQL aus supabase/abwesenheiten.sql in Supabase ausgeführt?');
         }
         closeModals();

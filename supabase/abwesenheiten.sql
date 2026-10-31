@@ -17,12 +17,19 @@ alter table public.abwesenheiten add column if not exists grund text;
 
 create index if not exists abwesenheiten_mini_idx on public.abwesenheiten (messdiener_id, von);
 
+create extension if not exists pgcrypto with schema extensions;
+
 create table if not exists public.mini_pins (
   messdiener_id text primary key,
-  pin text not null check (pin ~ '^[0-9]{4}$'),
+  pin text not null,
   failed_attempts int not null default 0,
   locked_until timestamptz
 );
+-- Hat der Mini seine PIN selbst geändert, steht hier nur noch ein Hash (für Leiter unlesbar)
+alter table public.mini_pins add column if not exists pin_geaendert boolean not null default false;
+alter table public.mini_pins drop constraint if exists mini_pins_pin_check;
+alter table public.mini_pins drop constraint if exists mini_pins_pin_format;
+alter table public.mini_pins add constraint mini_pins_pin_format check (pin_geaendert or pin ~ '^[0-9]{4}$');
 
 -- 2) Zugriff: Tabellen nur für angemeldete Leiter, Minis nur über die Funktionen unten
 alter table public.abwesenheiten enable row level security;
@@ -43,7 +50,7 @@ create or replace function public._mini_pin_check(p_id text, p_pin text)
 returns text
 language plpgsql
 security definer
-set search_path = public
+set search_path = public, extensions
 as $$
 declare r public.mini_pins%rowtype;
 begin
@@ -58,7 +65,7 @@ begin
     r.failed_attempts := 0;
   end if;
 
-  if r.pin = coalesce(p_pin, '') then
+  if (case when r.pin_geaendert then r.pin = crypt(coalesce(p_pin, ''), r.pin) else r.pin = coalesce(p_pin, '') end) then
     if r.failed_attempts > 0 then
       update public.mini_pins set failed_attempts = 0 where messdiener_id = p_id;
     end if;
@@ -103,7 +110,9 @@ declare status text;
 begin
   status := public._mini_pin_check(p_id, p_pin);
   if status <> 'ok' then return jsonb_build_object('ok', false, 'error', status); end if;
-  return jsonb_build_object('ok', true, 'abwesenheiten', (
+  return jsonb_build_object('ok', true,
+    'pin_geaendert', (select pin_geaendert from public.mini_pins where messdiener_id = p_id),
+    'abwesenheiten', (
     select coalesce(jsonb_agg(jsonb_build_object('id', a.id, 'von', a.von, 'bis', a.bis, 'grund', a.grund) order by a.von), '[]'::jsonb)
       from public.abwesenheiten a
      where a.messdiener_id = p_id and a.bis >= current_date));

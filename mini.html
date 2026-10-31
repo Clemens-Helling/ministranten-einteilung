@@ -56,6 +56,13 @@
           <button id="logout-btn" type="button" class="text-sm text-slate-500 hover:text-slate-800 underline">Abmelden</button>
         </div>
 
+        <!-- Hinweis, solange noch die PIN vom Zettel gilt -->
+        <div id="pin-nudge" class="panel panel-pad notice hidden space-y-2">
+          <p class="font-semibold text-slate-900">Wähle deine eigene PIN</p>
+          <p class="hint">Du nutzt noch die PIN vom Zettel. Mit einer eigenen PIN kann niemand sonst in deinem Namen etwas eintragen. Die Leiter können sie danach nicht mehr sehen.</p>
+          <a href="#pin-card" class="btn btn-primary btn-sm">PIN ändern</a>
+        </div>
+
         <!-- Einchecken (QR-Code in der Sakristei, Adresse mit ?k=) -->
         <div id="checkin-card" class="hidden space-y-3">
           <div id="checkin-list" class="space-y-3"></div>
@@ -113,6 +120,18 @@
           <ul id="list" class="divide-y divide-slate-100"></ul>
         </div>
 
+        <form id="pin-card" class="panel panel-pad space-y-4">
+          <div>
+            <h2 class="panel-title">Meine PIN ändern</h2>
+            <p class="hint mt-1">Die neue PIN besteht aus 4 Ziffern. Die Leiter sehen sie nicht. Vergisst du sie, setzen die Leiter sie zurück.</p>
+          </div>
+          <div class="grid grid-cols-2 gap-3">
+            <div><label for="pin-new" class="label">Neue PIN</label><input id="pin-new" type="password" inputmode="numeric" pattern="[0-9]{4}" maxlength="4" autocomplete="new-password" required class="field tracking-widest" /></div>
+            <div><label for="pin-new2" class="label">Wiederholen</label><input id="pin-new2" type="password" inputmode="numeric" pattern="[0-9]{4}" maxlength="4" autocomplete="new-password" required class="field tracking-widest" /></div>
+          </div>
+          <button id="pin-btn" type="submit" class="btn btn-secondary btn-block">PIN ändern</button>
+        </form>
+
         <div id="cal-card" class="panel panel-pad hidden">
           <h2 class="panel-title mb-1">Meine Dienste im Kalender</h2>
           <p class="hint mb-3">Deine Einteilungen erscheinen automatisch in deinem Handykalender und aktualisieren sich von selbst.</p>
@@ -161,6 +180,9 @@
           limit: "Du hast schon sehr viele Einträge. Lösche alte oder melde dich bei den Leitern.",
           closed: "Hier kann gerade nichts eingetragen werden. Der Gottesdienst ist vorbei oder das Einchecken noch nicht offen.",
           notfound: "Dieser Link ist nicht (mehr) gültig. Frag bitte einen Leiter.",
+          format: "Die PIN besteht aus genau 4 Ziffern.",
+          same: "Die neue PIN muss anders sein als die bisherige.",
+          mismatch: "Die beiden PINs sind nicht gleich.",
           badkey: "Dieser QR-Code ist nicht (mehr) gültig. Bitte scanne den aktuellen Code in der Sakristei.",
         })[code] || "Das hat leider nicht geklappt. Bitte versuche es später noch einmal.";
       }
@@ -194,8 +216,9 @@
         if (data.length === 0) { select.innerHTML = '<option value="">Noch niemand freigeschaltet</option>'; return; }
         select.innerHTML = '<option value="">Bitte wählen …</option>';
         data.forEach((p) => { const o = el("option", "", p.name); o.value = p.id; select.appendChild(o); });
-        const saved = recall("abwesenheit-mini-id");
-        if (saved && data.some((p) => String(p.id) === saved)) select.value = saved;
+        // ?m=<id> kommt vom QR-Code auf dem Zettel und wählt den Namen vor
+        const wanted = params.get("m") || recall("abwesenheit-mini-id");
+        if (wanted && data.some((p) => String(p.id) === wanted)) select.value = wanted;
       }
 
       // ---------- Meine Dienste ----------
@@ -340,6 +363,7 @@
         $("von").min = t; $("bis").min = t;
         $("von").value = ""; $("bis").value = ""; $("grund").value = "";
         renderList(result.abwesenheiten || []);
+        $("pin-nudge").classList.toggle("hidden", result.pin_geaendert !== false);
         loadCheckin(); loadSignup(); loadServices(); loadCalendar(false);
       }
 
@@ -417,6 +441,26 @@
         const von = $("von").value;
         if (von && (!$("bis").value || $("bis").value < von)) $("bis").value = von;
         $("bis").min = von || todayIso();
+      });
+
+      $("pin-card").addEventListener("submit", async (e) => {
+        e.preventDefault();
+        if (!session) return;
+        showMessage("");
+        const neu = $("pin-new").value.trim(), neu2 = $("pin-new2").value.trim();
+        if (!/^\d{4}$/.test(neu)) return showMessage(errorText("format"), "error");
+        if (neu !== neu2) return showMessage(errorText("mismatch"), "error");
+        const btn = $("pin-btn");
+        btn.disabled = true;
+        const { data, error } = await sb.rpc("pin_change", { p_id: session.id, p_pin: session.pin, p_neu: neu });
+        btn.disabled = false;
+        if (error || !data) return showMessage(errorText(), "error");
+        if (!data.ok) return showMessage(errorText(data.error), "error");
+        session.pin = neu;
+        if (recall("abwesenheit-pin")) store("abwesenheit-pin", neu); // gemerkte PIN aktualisieren
+        $("pin-new").value = ""; $("pin-new2").value = "";
+        $("pin-nudge").classList.add("hidden");
+        showMessage("Deine PIN ist geändert. Ab jetzt gilt die neue PIN.", "ok");
       });
 
       $("signup-join").addEventListener("click", () => setJoin(true));
