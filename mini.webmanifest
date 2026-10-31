@@ -1,7 +1,7 @@
 {
   "id": "./mini.html",
-  "name": "Messdienst",
-  "short_name": "Messdienst",
+  "name": "MessMeister",
+  "short_name": "MessMeister",
   "description": "Dienste, Abwesenheit und Anwesenheit für Messdiener",
   "lang": "de",
   "start_url": "./mini.html",
