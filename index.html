@@ -175,7 +175,7 @@
             </div>
             <div id="absence-link-card" class="panel panel-pad flex flex-col sm:flex-row sm:items-center gap-3">
               <div class="min-w-0 flex-1">
-                <p class="text-sm font-semibold text-slate-900">Abwesenheits-Seite für die Minis</p>
+                <p class="text-sm font-semibold text-slate-900">Mini-Seite (Dienste, Abwesenheit, Kalender)</p>
                 <p id="absence-url" class="text-xs text-slate-500 break-all mt-0.5"></p>
               </div>
               <button onclick="copyAbsenceUrl()" class="btn btn-secondary btn-sm"><span data-icon="copy"></span>Link kopieren</button>
@@ -1058,7 +1058,7 @@
       // ---------- Anwesenheit ----------
       function attendanceUrl() {
         if (!state.attendanceKey) return '';
-        const u = new URL('anwesenheit.html', location.href);
+        const u = new URL('mini.html', location.href);
         u.search = '?k=' + state.attendanceKey;
         return u.href;
       }
@@ -1188,7 +1188,7 @@
 
       // ---------- Anmeldung per Link ----------
       function signupUrl(g) {
-        const u = new URL('anmeldung.html', location.href);
+        const u = new URL('mini.html', location.href);
         u.search = '?t=' + g.anmeldung_token;
         return u.href;
       }
@@ -1553,7 +1553,7 @@
       }
 
       function absenceUrl() {
-        const u = new URL('abwesenheit.html', location.href);
+        const u = new URL('mini.html', location.href);
         u.search = ''; u.hash = '';
         return u.href;
       }
