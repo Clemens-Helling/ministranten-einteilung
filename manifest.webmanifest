@@ -1,7 +1,7 @@
 {
   "id": "./index.html",
-  "name": "Messdiener-Manager",
-  "short_name": "Messdiener",
+  "name": "MessMeister",
+  "short_name": "MessMeister",
   "description": "Einteilung der Messdiener für Gottesdienste",
   "lang": "de",
   "start_url": "./index.html",
