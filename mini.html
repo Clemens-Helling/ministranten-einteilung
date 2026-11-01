@@ -63,6 +63,12 @@
           <a href="#pin-card" class="btn btn-primary btn-sm">PIN ändern</a>
         </div>
 
+        <!-- Vertretungsanfragen an mich -->
+        <div id="anfragen" class="panel panel-pad space-y-3 hidden">
+          <h2 class="panel-title">Vertretung</h2>
+          <ul id="anfragen-list" class="divide-y divide-slate-100"></ul>
+        </div>
+
         <!-- Einchecken (QR-Code in der Sakristei, Adresse mit ?k=) -->
         <div id="checkin-card" class="hidden space-y-3">
           <div id="checkin-list" class="space-y-3"></div>
@@ -88,6 +94,12 @@
         <div class="panel panel-pad">
           <h2 class="panel-title mb-1">Meine nächsten Dienste</h2>
           <ul id="dienste" class="divide-y divide-slate-100"></ul>
+        </div>
+
+        <div id="push-card" class="panel panel-pad space-y-2 hidden">
+          <h2 class="panel-title">Benachrichtigungen</h2>
+          <p id="push-text" class="hint"></p>
+          <button id="push-btn" type="button" class="btn btn-secondary btn-block"></button>
         </div>
 
         <form id="add-form" class="panel panel-pad space-y-4">
@@ -145,11 +157,30 @@
       </section>
     </main>
 
+    <div id="modal-sub" class="modal fixed inset-0 bg-slate-900/50 backdrop-blur-sm hidden items-center justify-center p-4 z-50">
+      <div class="modal-card max-w-md w-full max-h-[92vh] overflow-y-auto p-6 space-y-4">
+        <div>
+          <h3 class="modal-title">Vertretung suchen</h3>
+          <p id="sub-when" class="hint mt-1"></p>
+        </div>
+        <p class="hint">Wähle aus, wen du fragen möchtest. Alle bekommen sofort eine Nachricht. Wer zuerst zusagt, übernimmt deinen Dienst.</p>
+        <ul id="sub-list" class="divide-y divide-slate-100"></ul>
+        <div class="flex gap-2 justify-end">
+          <button id="sub-cancel" type="button" class="btn btn-secondary">Abbrechen</button>
+          <button id="sub-send" type="button" class="btn btn-primary">Anfragen</button>
+        </div>
+      </div>
+    </div>
+
     <script>
       const SUPABASE_URL = "https://wkeccnqquqwszbjhdfqo.supabase.co";
       const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndrZWNjbnFxdXF3c3piamhkZnFvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTI3NjYwNzcsImV4cCI6MjEwODM0MjA3N30.FhbXCHfHV0H0vBp5GVF9J-vADXJ65eJ61-OMjQ2-PpY";
       // Adresse der Edge Function (steht im Supabase-Dashboard unter Edge Functions in der URL-Spalte)
       const CALENDAR_FUNCTION = "rapid-task";
+      // Web-Push: Name der Edge Function "push" und der öffentliche VAPID-Schlüssel
+      // (erzeugen mit: npx web-push generate-vapid-keys). Leer lassen = keine Push-Nachrichten.
+      const PUSH_FUNCTION = "push";
+      const VAPID_PUBLIC_KEY = "";
       // Keine Sitzung speichern, damit die Leiter-Anmeldung im selben Browser nicht gestört wird
       const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, { auth: { persistSession: false, autoRefreshToken: false } });
 
@@ -183,6 +214,10 @@
           format: "Die PIN besteht aus genau 4 Ziffern.",
           same: "Die neue PIN muss anders sein als die bisherige.",
           mismatch: "Die beiden PINs sind nicht gleich.",
+          empty: "Niemand ausgewählt oder die Personen kommen nicht (mehr) in Frage.",
+          gone: "Diese Anfrage gibt es nicht mehr. Vielleicht wurde der Dienst schon vergeben.",
+          already: "Du bist bei diesem Gottesdienst schon eingeteilt.",
+          absent: "An diesem Tag hast du eine Abwesenheit eingetragen. Lösche sie zuerst, wenn du doch kannst.",
           badkey: "Dieser QR-Code ist nicht (mehr) gültig. Bitte scanne den aktuellen Code in der Sakristei.",
         })[code] || "Das hat leider nicht geklappt. Bitte versuche es später noch einmal.";
       }
@@ -222,9 +257,12 @@
       }
 
       // ---------- Meine Dienste ----------
+      let inboxGids = {}; // Anfrage-ID -> gottesdienst_id
+      let outgoing = {}; // gottesdienst_id -> Anfragen, die ich gestellt habe
       async function loadServices() {
         const list = $("dienste");
         list.innerHTML = "";
+        await loadInbox();
         const { data, error } = await sb.rpc("my_services", { p_id: session.id, p_pin: session.pin });
         if (error || !data || !data.ok) { list.append(el("li", "py-3 text-sm text-slate-500", "Deine Dienste kann ich gerade nicht laden.")); return; }
         if (!data.dienste.length) { list.append(el("li", "py-3 text-sm text-slate-500", "Aktuell bist du nicht eingeteilt.")); return; }
@@ -234,9 +272,183 @@
           li.append(el("p", "text-sm font-semibold text-slate-900", `${weekdaysLong[p.wd]}, ${String(p.d).padStart(2, "0")}.${String(p.m).padStart(2, "0")}.${g.zeit ? " · " + timeText(g.zeit) : ""}`));
           li.append(el("p", "text-sm text-slate-600", (g.titel || "").replace(/\s*\(.*\)$/, "")));
           if (g.team) li.append(el("p", "hint", "Mit " + g.team));
+          const asked = outgoing[g.id] || [];
+          if (asked.length) {
+            const txt = { offen: "wartet", abgelehnt: "kann nicht", vergeben: "nicht mehr nötig" };
+            li.append(el("p", "hint mt-1", "Angefragt: " + asked.map((a) => `${a.an} (${txt[a.status] || a.status})`).join(", ")));
+          }
+          const row = el("div", "mt-2 flex flex-wrap gap-2");
+          const find = el("button", "btn btn-secondary btn-sm", asked.some((a) => a.status === "offen") ? "Weitere anfragen" : "Vertretung suchen");
+          find.type = "button";
+          find.addEventListener("click", () => openSub(g));
+          row.append(find);
+          if (asked.some((a) => a.status === "offen")) {
+            const back = el("button", "btn btn-quiet btn-sm", "Anfragen zurückziehen");
+            back.type = "button";
+            back.addEventListener("click", () => cancelSub(g.id));
+            row.append(back);
+          }
+          li.append(row);
           list.append(li);
         });
       }
+
+      // ---------- Vertretung ----------
+      function whenText(g) { const p = parts(g.datum); return `${weekdaysShort[p.wd]}, ${String(p.d).padStart(2, "0")}.${String(p.m).padStart(2, "0")}.${g.zeit ? " · " + timeText(g.zeit) : ""}`; }
+
+      async function loadInbox() {
+        if (!session) return;
+        const { data } = await sb.rpc("sub_inbox", { p_id: session.id, p_pin: session.pin });
+        const card = $("anfragen"), list = $("anfragen-list");
+        list.innerHTML = "";
+        outgoing = {}; inboxGids = {};
+        if (!data || !data.ok) { card.classList.add("hidden"); return; }
+        (data.ausgang || []).forEach((a) => { (outgoing[a.gottesdienst_id] = outgoing[a.gottesdienst_id] || []).push(a); });
+        (data.eingang || []).forEach((r) => {
+          inboxGids[r.id] = r.gottesdienst_id;
+          const li = el("li", "py-3 space-y-2");
+          li.append(el("p", "text-sm font-semibold text-slate-900", `${r.von} sucht eine Vertretung`));
+          li.append(el("p", "text-sm text-slate-600", `${whenText(r)} · ${(r.titel || "").replace(/\s*\(.*\)$/, "")}`));
+          const row = el("div", "flex gap-2");
+          const yes = el("button", "btn btn-primary btn-sm", "Übernehmen");
+          const no = el("button", "btn btn-secondary btn-sm", "Kann nicht");
+          [yes, no].forEach((b) => (b.type = "button"));
+          yes.addEventListener("click", () => answerSub(r.id, true, [yes, no]));
+          no.addEventListener("click", () => answerSub(r.id, false, [yes, no]));
+          row.append(yes, no);
+          li.append(row);
+          list.append(li);
+        });
+        (data.ausgang || []).filter((a) => a.status === "angenommen").forEach((a) => {
+          const li = el("li", "py-3");
+          li.append(el("p", "badge badge-ok inline-flex", `${a.an} übernimmt deinen Dienst`));
+          li.append(el("p", "hint mt-1", `${whenText(a)} · ${(a.titel || "").replace(/\s*\(.*\)$/, "")}`));
+          list.append(li);
+        });
+        card.classList.toggle("hidden", !list.children.length);
+      }
+
+      async function pushNotify(gid) {
+        // Server verschickt die Nachrichten; schlägt das fehl, sieht man die Anfrage trotzdem in der App
+        try { await sb.functions.invoke(PUSH_FUNCTION, { body: { id: session.id, pin: session.pin, gid } }); } catch (e) {}
+      }
+
+      async function answerSub(reqId, accept, btns) {
+        showMessage("");
+        btns.forEach((b) => (b.disabled = true));
+        const { data, error } = await sb.rpc("sub_answer", { p_id: session.id, p_pin: session.pin, p_req: reqId, p_accept: accept });
+        if (error || !data || !data.ok) { btns.forEach((b) => (b.disabled = false)); showMessage(errorText(data && data.error), "error"); loadServices(); return; }
+        const gid = inboxGids[reqId] || null; // für die Push-Nachricht an den Anfragenden
+        showMessage(accept ? "Danke! Du übernimmst den Dienst." : "Okay, die Anfrage ist abgelehnt.", "ok");
+        await loadServices();
+        if (gid) pushNotify(gid);
+      }
+
+      let subTarget = null, subPick = new Set();
+      async function openSub(g) {
+        showMessage("");
+        const { data, error } = await sb.rpc("sub_candidates", { p_id: session.id, p_pin: session.pin, p_gid: g.id });
+        if (error || !data || !data.ok) return showMessage(errorText(data && data.error), "error");
+        subTarget = g; subPick = new Set();
+        $("sub-when").textContent = `${whenText(g)} · ${(g.titel || "").replace(/\s*\(.*\)$/, "")}`;
+        const list = $("sub-list");
+        list.innerHTML = "";
+        if (!data.kandidaten.length) list.append(el("li", "py-3 text-sm text-slate-500", "Gerade kommt niemand in Frage. Sprich bitte mit einem Leiter."));
+        data.kandidaten.forEach((k) => {
+          const li = el("li");
+          const label = el("label", "flex items-center gap-3 py-3 cursor-pointer");
+          const box = el("input"); box.type = "checkbox"; box.className = "rounded accent-[rgb(var(--a600))]";
+          box.disabled = k.status === "offen";
+          box.addEventListener("change", () => (box.checked ? subPick.add(k.id) : subPick.delete(k.id)));
+          const t = el("span", "text-sm text-slate-800 flex-1", k.name);
+          label.append(box, t);
+          if (k.status === "offen") label.append(el("span", "hint", "schon angefragt"));
+          else if (k.status === "abgelehnt") label.append(el("span", "hint", "hat abgesagt"));
+          else if (!k.passt) label.append(el("span", "hint", "sonst nicht an diesem Tag"));
+          li.append(label); list.append(li);
+        });
+        $("sub-send").disabled = !data.kandidaten.length;
+        $("modal-sub").classList.remove("hidden"); $("modal-sub").classList.add("flex");
+      }
+      function closeSub() { $("modal-sub").classList.add("hidden"); $("modal-sub").classList.remove("flex"); }
+      $("sub-cancel").addEventListener("click", closeSub);
+      $("modal-sub").addEventListener("click", (e) => { if (e.target === $("modal-sub")) closeSub(); });
+      $("sub-send").addEventListener("click", async () => {
+        if (!subPick.size) return showMessage("Bitte wähle mindestens eine Person aus.", "error");
+        const btn = $("sub-send"); btn.disabled = true;
+        const g = subTarget;
+        const { data, error } = await sb.rpc("sub_request", { p_id: session.id, p_pin: session.pin, p_gid: g.id, p_an_ids: Array.from(subPick) });
+        btn.disabled = false;
+        closeSub();
+        if (error || !data || !data.ok) return showMessage(errorText(data && data.error), "error");
+        showMessage(data.angefragt === 1 ? "Anfrage verschickt." : `${data.angefragt} Anfragen verschickt.`, "ok");
+        await loadServices();
+        pushNotify(g.id);
+      });
+      async function cancelSub(gid) {
+        if (!confirm("Alle offenen Anfragen für diesen Dienst zurückziehen?")) return;
+        await sb.rpc("sub_cancel", { p_id: session.id, p_pin: session.pin, p_gid: gid });
+        loadServices();
+      }
+
+      // ---------- Push-Benachrichtigungen ----------
+      const pushSupported = () => VAPID_PUBLIC_KEY && "serviceWorker" in navigator && "PushManager" in window && "Notification" in window;
+      const iosBrowser = () => /iPad|iPhone|iPod/.test(navigator.userAgent) && !navigator.standalone;
+      function keyBytes(b64) {
+        const pad = "=".repeat((4 - (b64.length % 4)) % 4);
+        const raw = atob((b64 + pad).replace(/-/g, "+").replace(/_/g, "/"));
+        return Uint8Array.from(raw, (c) => c.charCodeAt(0));
+      }
+      async function pushRegistration() { return navigator.serviceWorker.ready; }
+      async function savePushSub(sub) {
+        const j = sub.toJSON();
+        await sb.rpc("push_save", { p_id: session.id, p_pin: session.pin, p_endpoint: j.endpoint, p_p256dh: j.keys.p256dh, p_auth: j.keys.auth });
+      }
+      async function refreshPushCard() {
+        const card = $("push-card");
+        if (!pushSupported() || !session) { card.classList.add("hidden"); return; }
+        card.classList.remove("hidden");
+        const btn = $("push-btn"), text = $("push-text");
+        btn.classList.remove("hidden");
+        if (iosBrowser()) {
+          text.textContent = "Auf dem iPhone geht das erst, wenn du die Seite zum Home-Bildschirm hinzufügst (Teilen-Symbol, dann „Zum Home-Bildschirm“) und von dort öffnest.";
+          btn.classList.add("hidden"); return;
+        }
+        if (Notification.permission === "denied") {
+          text.textContent = "Benachrichtigungen sind in den Browser-Einstellungen blockiert. Erlaube sie dort für diese Seite, wenn du Vertretungsanfragen sofort sehen möchtest.";
+          btn.classList.add("hidden"); return;
+        }
+        const reg = await pushRegistration();
+        const sub = await reg.pushManager.getSubscription();
+        if (sub && Notification.permission === "granted") {
+          savePushSub(sub); // gleiches Gerät, evtl. anderer Name: Zuordnung aktuell halten
+          text.textContent = "Du bekommst eine Nachricht, wenn jemand eine Vertretung sucht oder auf deine Anfrage antwortet.";
+          btn.textContent = "Ausschalten"; btn.dataset.mode = "off";
+        } else {
+          text.textContent = "Lass dir melden, wenn jemand eine Vertretung sucht oder auf deine Anfrage antwortet.";
+          btn.textContent = "Benachrichtigungen aktivieren"; btn.dataset.mode = "on";
+        }
+      }
+      $("push-btn").addEventListener("click", async () => {
+        const btn = $("push-btn"); btn.disabled = true; showMessage("");
+        try {
+          const reg = await pushRegistration();
+          if (btn.dataset.mode === "off") {
+            const sub = await reg.pushManager.getSubscription();
+            if (sub) { await sb.rpc("push_remove", { p_id: session.id, p_pin: session.pin, p_endpoint: sub.endpoint }); await sub.unsubscribe(); }
+          } else {
+            const perm = await Notification.requestPermission();
+            if (perm !== "granted") throw new Error("denied");
+            const sub = (await reg.pushManager.getSubscription()) || (await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: keyBytes(VAPID_PUBLIC_KEY) }));
+            await savePushSub(sub);
+            showMessage("Benachrichtigungen sind aktiv.", "ok");
+          }
+        } catch (e) { showMessage("Das hat nicht geklappt. Prüfe, ob Benachrichtigungen für diese Seite erlaubt sind.", "error"); }
+        btn.disabled = false;
+        refreshPushCard();
+      });
+      if ("serviceWorker" in navigator) navigator.serviceWorker.addEventListener("message", (e) => { if (e.data && e.data.type === "vertretung" && session) loadServices(); });
+      document.addEventListener("visibilitychange", () => { if (!document.hidden && session) loadServices(); });
 
       // ---------- Abwesenheiten ----------
       function renderList(items) {
@@ -364,7 +576,7 @@
         $("von").value = ""; $("bis").value = ""; $("grund").value = "";
         renderList(result.abwesenheiten || []);
         $("pin-nudge").classList.toggle("hidden", result.pin_geaendert !== false);
-        loadCheckin(); loadSignup(); loadServices(); loadCalendar(false);
+        loadCheckin(); loadSignup(); loadServices(); loadCalendar(false); refreshPushCard();
       }
 
       function leaveApp() {
@@ -373,6 +585,8 @@
         $("pin-input").value = "";
         $("app").classList.add("hidden");
         $("cal-card").classList.add("hidden");
+        $("push-card").classList.add("hidden");
+        $("anfragen").classList.add("hidden");
         $("signup-card").classList.add("hidden");
         $("checkin-card").classList.add("hidden");
         calUrl = "";
