@@ -500,6 +500,40 @@
       </div>
     </div>
 
+    <!-- MODAL: ABWESENHEIT EINTRAGEN -->
+    <div id="modal-abwesenheit" class="modal fixed inset-0 bg-slate-900/50 backdrop-blur-sm hidden items-center justify-center p-4 z-50">
+      <div class="modal-card max-w-md w-full max-h-[92vh] overflow-y-auto p-6 space-y-4">
+        <h3 class="modal-title">Abwesenheit eintragen</h3>
+        <div>
+          <label class="label" for="ab-person">Wer ist abwesend?</label>
+          <select id="ab-person" class="field" onchange="absencePersonChanged()"></select>
+          <p id="ab-person-hint" class="hint mt-1"></p>
+        </div>
+        <div class="grid grid-cols-2 gap-3">
+          <div><label class="label" for="ab-von">Von</label><input type="date" id="ab-von" class="field" onchange="absenceVonChanged()" /></div>
+          <div><label class="label" for="ab-bis">Bis (einschließlich)</label><input type="date" id="ab-bis" class="field" /></div>
+        </div>
+        <p class="hint -mt-2">Nur ein Tag? Dann wähle zweimal dasselbe Datum.</p>
+        <div>
+          <label class="label" for="ab-grund">Grund</label>
+          <input type="text" id="ab-grund" class="field" maxlength="100" list="ab-grund-vorschlaege" autocomplete="off" placeholder="z. B. Urlaub, Schule, Familie" />
+          <datalist id="ab-grund-vorschlaege">
+            <option value="Urlaub"></option><option value="Ferien"></option><option value="Schule / Prüfung"></option>
+            <option value="Familie"></option><option value="Krank"></option><option value="Sonstiges"></option>
+          </datalist>
+          <p class="hint mt-1">Bitte kurz und allgemein, ohne Einzelheiten zu Krankheiten.</p>
+        </div>
+        <div class="flex justify-end gap-2">
+          <button onclick="closeModals()" class="btn btn-quiet">Schließen</button>
+          <button id="ab-save" onclick="saveAbsence()" class="btn btn-primary">Eintragen</button>
+        </div>
+        <div class="border-t border-slate-100 pt-4">
+          <p class="panel-title mb-1">Eingetragene Abwesenheiten</p>
+          <div id="ab-list"></div>
+        </div>
+      </div>
+    </div>
+
     <div id="modal-gottesdienst-edit" class="modal fixed inset-0 bg-slate-900/50 backdrop-blur-sm hidden items-center justify-center p-4 z-50">
       <div class="modal-card max-w-lg w-full max-h-[92vh] overflow-y-auto p-6 space-y-5">
         <h3 class="modal-title">Gottesdienst bearbeiten</h3>
@@ -946,8 +980,10 @@
           .sort((x, y) => x.a.von.localeCompare(y.a.von));
         if (upcoming.length === 0) return '<p class="text-sm text-slate-500">Zurzeit hat sich niemand abgemeldet.</p>';
         const range = (a) => a.von === a.bis ? formatDateShort(a.von) : `${formatDateShort(a.von)} bis ${formatDateShort(a.bis)}`;
+        // Wer die Abwesenheit bearbeiten darf, kann den Eintrag antippen (Leiter: Leiter, Admins: alle)
+        const editable = new Set(absenceCandidates().map(c => String(c.id)));
         return `<div>${upcoming.slice(0, 8).map(({ a, m }) => `
-            <div class="py-2.5 text-sm flex justify-between gap-3 border-t border-slate-100 first:border-0">
+            <div class="py-2.5 text-sm flex justify-between gap-3 border-t border-slate-100 first:border-0${editable.has(String(m.id)) ? ' cursor-pointer' : ''}"${editable.has(String(m.id)) ? ` onclick="openAbsenceModal('${escHtml(String(m.id))}')" title="Zum Bearbeiten antippen"` : ''}>
               <span class="min-w-0">
                 <span class="block font-medium text-slate-800 truncate">${escHtml(m.name)}</span>
                 ${a.grund ? `<span class="block text-xs text-slate-500 truncate">${escHtml(a.grund)}</span>` : ''}
@@ -1078,7 +1114,10 @@
                 ${ranking.length ? `<div class="space-y-2.5">${ranking.map(barRow).join('')}</div>` : '<p class="text-sm text-slate-500">Noch keine Messdiener angelegt.</p>'}
               </div>
               <div class="panel panel-pad">
-                <h3 class="panel-title mb-2">Abwesenheiten</h3>
+                <div class="flex items-center justify-between gap-3 mb-2">
+                  <h3 class="panel-title">Abwesenheiten</h3>
+                  <button onclick="openAbsenceModal()" class="btn btn-secondary btn-sm">Eintragen</button>
+                </div>
                 ${absenceCardHtml()}
               </div>
             </div>
@@ -1833,6 +1872,121 @@
         if (error) return alert('PINs konnten nicht gespeichert werden: ' + error.message + '\n\nHast du das SQL aus supabase/abwesenheiten.sql in Supabase ausgeführt?');
         await loadDataFromDB();
         alert(`${rows.length} PIN(s) erzeugt. Zum Anzeigen tippst du in der Spalte „PIN" auf die Punkte, oder du druckst Zettel.`);
+      }
+
+      // ---------- Abwesenheit direkt in der App eintragen (Leiter) ----------
+      // Gleiche Tabelle und gleiche Regeln wie die Mini-Seite (mini.html), nur ohne PIN:
+      // Angemeldete Leiter dürfen die Tabelle "abwesenheiten" laut abwesenheiten.sql ohnehin lesen und ändern.
+      // Leiter wählen ihren eigenen Namen unter den Leitern, Admins können für alle eintragen.
+      const ABSENCE_ME_KEY = 'messdiener-absence-me';
+      let absencePersonId = null;
+
+      function absenceCandidates() {
+        return state.messdiener
+          .filter(m => isAdmin() || m.type === 'Senior')
+          .sort((a, b) => a.name.localeCompare(b.name, 'de'));
+      }
+
+      function upcomingAbsencesOf(id) {
+        const today = todayString();
+        return (state.absences || [])
+          .filter(a => String(a.messdiener_id) === String(id) && a.bis >= today)
+          .sort((x, y) => x.von.localeCompare(y.von));
+      }
+
+      function openAbsenceModal(preselectId) {
+        const list = absenceCandidates();
+        if (list.length === 0) return alert(isAdmin() ? 'Es sind noch keine Messdiener angelegt.' : 'Es sind noch keine Leiter angelegt.');
+        let id = preselectId != null ? String(preselectId) : null;
+        if (!id) { try { id = localStorage.getItem(ABSENCE_ME_KEY); } catch (e) {} }
+        if (!list.some(m => String(m.id) === String(id))) id = list.length === 1 ? String(list[0].id) : '';
+
+        const sel = document.getElementById('ab-person');
+        sel.innerHTML = (id ? '' : '<option value="">Bitte wählen …</option>') + list.map(m =>
+          `<option value="${escHtml(String(m.id))}">${escHtml(m.name)}${isAdmin() && m.type !== 'Senior' ? ' (Kind)' : ''}</option>`).join('');
+        sel.value = id || '';
+        document.getElementById('ab-person-hint').textContent = isAdmin()
+          ? 'Als Admin kannst du für alle eintragen.'
+          : 'Wähle deinen Namen. Die Auswahl merkt sich dieses Gerät.';
+
+        const today = todayString();
+        const von = document.getElementById('ab-von'), bis = document.getElementById('ab-bis');
+        von.min = today; bis.min = today; von.value = ''; bis.value = '';
+        document.getElementById('ab-grund').value = '';
+        absencePersonId = id || null;
+        renderAbsenceList();
+
+        const modal = document.getElementById('modal-abwesenheit');
+        modal.classList.remove('hidden'); modal.classList.add('flex');
+      }
+
+      function absencePersonChanged() {
+        absencePersonId = document.getElementById('ab-person').value || null;
+        try { if (absencePersonId) localStorage.setItem(ABSENCE_ME_KEY, absencePersonId); } catch (e) {}
+        renderAbsenceList();
+      }
+
+      // Wählt jemand "Von", springt "Bis" mit, damit ein einzelner Tag nur eine Eingabe braucht
+      function absenceVonChanged() {
+        const von = document.getElementById('ab-von').value, bis = document.getElementById('ab-bis');
+        if (von && (!bis.value || bis.value < von)) bis.value = von;
+        bis.min = von || todayString();
+      }
+
+      function renderAbsenceList() {
+        const box = document.getElementById('ab-list');
+        if (!absencePersonId) { box.innerHTML = '<p class="text-sm text-slate-500">Wähle oben eine Person aus.</p>'; return; }
+        const items = upcomingAbsencesOf(absencePersonId);
+        if (items.length === 0) { box.innerHTML = '<p class="text-sm text-slate-500">Keine Abwesenheiten eingetragen.</p>'; return; }
+        const range = (a) => a.von === a.bis ? formatDateShort(a.von) : `${formatDateShort(a.von)} bis ${formatDateShort(a.bis)}`;
+        box.innerHTML = items.map(a => `
+          <div class="py-2.5 text-sm flex items-center justify-between gap-3 border-t border-slate-100 first:border-0">
+            <span class="min-w-0">
+              <span class="block font-medium text-slate-800">${range(a)}</span>
+              ${a.grund ? `<span class="block text-xs text-slate-500 truncate">${escHtml(a.grund)}</span>` : ''}
+            </span>
+            <button onclick="deleteAbsence('${escHtml(String(a.id))}')" class="btn btn-danger btn-sm shrink-0">Löschen</button>
+          </div>`).join('');
+      }
+
+      async function saveAbsence() {
+        const id = document.getElementById('ab-person').value;
+        const von = document.getElementById('ab-von').value;
+        const bis = document.getElementById('ab-bis').value;
+        const grund = document.getElementById('ab-grund').value.trim();
+        if (!id || !absenceCandidates().some(m => String(m.id) === String(id))) return alert('Bitte wähle aus, wer abwesend ist.');
+        if (!von || !bis || bis < von || bis < todayString()) return alert('Bitte prüfe die Daten: „Bis" darf nicht vor „Von" liegen und nicht in der Vergangenheit.');
+        if ((new Date(`${bis}T12:00:00`) - new Date(`${von}T12:00:00`)) / 86400000 > 366) return alert('Der Zeitraum darf höchstens ein Jahr umfassen.');
+        if (!grund || grund.length > 100) return alert('Bitte gib einen kurzen Grund an (höchstens 100 Zeichen).');
+        if (upcomingAbsencesOf(id).length >= 50) return alert('Es sind schon 50 Abwesenheiten eingetragen. Lösche zuerst alte Einträge.');
+
+        const btn = document.getElementById('ab-save');
+        btn.disabled = true;
+        const { data, error } = await supabaseClient.from('abwesenheiten').insert([{ messdiener_id: String(id), von, bis, grund }]).select();
+        btn.disabled = false;
+        if (error) return alert('Die Abwesenheit konnte nicht gespeichert werden: ' + error.message);
+
+        state.absences = [...(state.absences || []), ...(data || [])];
+        saveCache();
+        document.getElementById('ab-von').value = ''; document.getElementById('ab-bis').value = ''; document.getElementById('ab-grund').value = '';
+        absencePersonId = id;
+        try { localStorage.setItem(ABSENCE_ME_KEY, String(id)); } catch (e) {}
+        renderAll();
+        renderAbsenceList();
+        window.toast('Abwesenheit eingetragen.');
+      }
+
+      async function deleteAbsence(absId) {
+        const a = (state.absences || []).find(x => String(x.id) === String(absId));
+        if (!a || !absenceCandidates().some(m => String(m.id) === String(a.messdiener_id))) return;
+        if (!confirm('Diese Abwesenheit löschen?')) return;
+        const { error } = await supabaseClient.from('abwesenheiten').delete().eq('id', a.id);
+        if (error) return alert('Die Abwesenheit konnte nicht gelöscht werden: ' + error.message);
+        state.absences = state.absences.filter(x => String(x.id) !== String(absId));
+        saveCache();
+        renderAll();
+        renderAbsenceList();
+        window.toast('Abwesenheit gelöscht.');
       }
 
       // ---------- Partner (gemeinsam einteilen) ----------
