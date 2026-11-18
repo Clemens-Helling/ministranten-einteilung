@@ -251,10 +251,11 @@
             <div class="page-head">
               <div>
                 <h2 class="page-title">Einteilung</h2>
-                <p class="page-sub">Verteilt die Minis fair auf alle Gottesdienste im Zeitraum und speichert das Ergebnis. Frühere und schon geplante Einsätze der letzten und nächsten 16 Wochen zählen mit, damit alle gleich oft dran sind.</p>
+                <p class="page-sub">Verteilt die Minis fair auf alle Gottesdienste im Zeitraum und speichert einen Entwurf. Bereits eingeteilte Minis bleiben eingeteilt und werden bei der Verteilung der übrigen Plätze mitgezählt. Bestätigte Einsätze der letzten und nächsten 16 Wochen zählen ebenfalls mit.</p>
               </div>
             </div>
             <div class="panel panel-pad space-y-5">
+              <p id="confirmation-stats-warning" role="alert" class="hidden text-sm rounded-lg p-3 border msg-bad"></p>
               <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label for="schedule-start" class="label">Einteilung ab</label>
@@ -274,6 +275,8 @@
               </label>
               <div class="pt-1">
                 <button onclick="runAutoAssign()" class="btn btn-primary"><span data-icon="checklist"></span>Einteilen und speichern</button>
+                <button onclick="confirmSchedule()" class="btn btn-secondary ml-2">Einteilung bestätigen</button>
+                <p class="hint mt-2">Entwürfe zählen noch nicht zur Statistik. Die Bestätigung gilt für alle Gottesdienste im gewählten Zeitraum.</p>
               </div>
             </div>
             <div id="schedule-results"></div>
@@ -320,7 +323,7 @@
             <div class="panel overflow-hidden">
               <div class="px-5 pt-5 pb-3">
                 <p class="panel-title">Zuverlässigkeit</p>
-                <p id="att-stats-sub" class="hint mt-1">Letzte 90 Tage, nur Gottesdienste mit erfasster Anwesenheit.</p>
+                <p id="att-stats-sub" class="hint mt-1">Letzte 90 Tage, nur bestätigte Einteilungen zählen als geplant.</p>
               </div>
               <table class="table-clean responsive-table">
                 <thead><tr><th>Name</th><th>Eingeteilt</th><th>Da</th><th>Quote</th><th>Zusätzlich da</th></tr></thead>
@@ -593,6 +596,7 @@
               <div id="ge-list-Junior" class="border border-slate-200 rounded-xl p-2 max-h-48 overflow-y-auto"></div>
             </div>
           </div>
+          <p id="ge-confirmed-note" class="hint mt-3 hidden"></p>
         </div>
 
         <div class="flex flex-wrap justify-between gap-3 pt-4 border-t border-slate-100">
@@ -613,7 +617,7 @@
       const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndrZWNjbnFxdXF3c3piamhkZnFvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTI3NjYwNzcsImV4cCI6MjEwODM0MjA3N30.FhbXCHfHV0H0vBp5GVF9J-vADXJ65eJ61-OMjQ2-PpY";
 
       let supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-      let state = { messdiener: [], gottesdienste: [], assignments: {}, absences: [], pins: {}, pinChanged: {}, signups: {}, attendance: {}, attendanceKey: null };
+      let state = { messdiener: [], gottesdienste: [], assignments: {}, confirmedAssignments: {}, confirmationStatsError: null, absences: [], pins: {}, pinChanged: {}, signups: {}, attendance: {}, attendanceKey: null };
       let activeUserId = null;
 
       // Hinweise erscheinen unten als kurze Meldung statt als Browser-Fenster
@@ -626,6 +630,7 @@
           localStorage.setItem(CACHE_KEY, JSON.stringify({
             user: activeUserId, at: Date.now(),
             messdiener: state.messdiener, gottesdienste: state.gottesdienste, assignments: state.assignments,
+            confirmedAssignments: state.confirmedAssignments,
             absences: state.absences, signups: state.signups, attendance: state.attendance,
           }));
         } catch (e) {}
@@ -784,6 +789,7 @@
             const c = loadCache();
             if (c) {
               state.messdiener = c.messdiener || []; state.gottesdienste = c.gottesdienste || []; state.assignments = c.assignments || {};
+              state.confirmedAssignments = c.confirmedAssignments || {};
               state.absences = c.absences || []; state.signups = c.signups || {}; state.attendance = c.attendance || {};
               renderAll();
             }
@@ -799,7 +805,7 @@
           appContent.classList.add("hidden");
           appContent.classList.remove("flex");
           loginScreen.classList.remove("hidden");
-          state = { messdiener: [], gottesdienste: [], assignments: {}, absences: [], pins: {}, pinChanged: {}, signups: {}, attendance: {}, attendanceKey: null };
+          state = { messdiener: [], gottesdienste: [], assignments: {}, confirmedAssignments: {}, confirmationStatsError: null, absences: [], pins: {}, pinChanged: {}, signups: {}, attendance: {}, attendanceKey: null };
         }
       });
 
@@ -840,7 +846,9 @@
         if (pinErr) ({ data: pinData } = await supabaseClient.from("mini_pins").select("messdiener_id, pin")); // SQL noch nicht aktualisiert
         const { data: signData } = await supabaseClient.from("anmeldungen").select("gottesdienst_id, messdiener_id");
         const { data: attData } = await supabaseClient.from("anwesenheit").select("gottesdienst_id, messdiener_id, zeit, quelle");
+        const { data: confirmedData, error: confirmedErr } = await supabaseClient.from("einteilung_statistik").select("*");
         const { data: setData } = await supabaseClient.from("einstellungen").select("schluessel, wert").eq("schluessel", "sakristei_key");
+        state.confirmationStatsError = confirmedErr ? confirmedErr.message : null;
         state.attendance = {};
         (attData || []).forEach(r => { (state.attendance[String(r.gottesdienst_id)] = state.attendance[String(r.gottesdienst_id)] || {})[String(r.messdiener_id)] = { zeit: r.zeit, quelle: r.quelle }; });
         state.attendanceKey = (setData && setData[0]) ? setData[0].wert : null;
@@ -852,6 +860,7 @@
           const c = loadCache();
           if (c) {
             state.messdiener = c.messdiener || []; state.gottesdienste = c.gottesdienste || []; state.assignments = c.assignments || {};
+            state.confirmedAssignments = c.confirmedAssignments || {};
             state.absences = c.absences || []; state.signups = c.signups || {}; state.attendance = c.attendance || {};
             setOffline(c.at);
             renderAll();
@@ -876,6 +885,10 @@
             state.assignments[item.gottesdienst_id] = { seniors: item.seniors, juniors: item.juniors };
           });
         }
+        state.confirmedAssignments = {};
+        if (confirmedData) confirmedData.forEach(item => {
+          state.confirmedAssignments[String(item.gottesdienst_id)] = item;
+        });
         renderAll();
         saveCache();
       }
@@ -1063,11 +1076,12 @@
             ${extra || ''}
           </div>`;
 
-        // Einsätze pro Mini in kommenden Gottesdiensten
+        // Nur bestätigte Einteilungen zählen in der Statistik.
         const counts = {};
         state.messdiener.forEach(m => counts[String(m.id)] = 0);
         upcoming.forEach(g => {
-          const a = state.assignments[g.id] || { seniors: [], juniors: [] };
+          const a = state.confirmedAssignments[String(g.id)];
+          if (!a) return;
           [...(a.seniors || []), ...(a.juniors || [])].forEach(p => { if (String(p.id) in counts) counts[String(p.id)]++; });
         });
         const ranking = state.messdiener
@@ -1107,11 +1121,13 @@
             <div class="space-y-6">
               <div class="panel panel-pad">
                 <h3 class="panel-title">Einsätze pro Mini</h3>
-                <p class="hint mt-1">in den kommenden Gottesdiensten</p>
+                <p class="hint mt-1">bestätigte Einteilungen in den kommenden Gottesdiensten</p>
                 <p class="hint mt-2 mb-4 flex items-center gap-4">
                   <span class="inline-flex items-center gap-1.5"><span class="dot dot-senior"></span>Leiter</span>
                   <span class="inline-flex items-center gap-1.5"><span class="dot dot-junior"></span>Kinder</span></p>
-                ${ranking.length ? `<div class="space-y-2.5">${ranking.map(barRow).join('')}</div>` : '<p class="text-sm text-slate-500">Noch keine Messdiener angelegt.</p>'}
+                ${state.confirmationStatsError
+                  ? '<p class="text-sm text-rose-700">Bestätigungsstatistik nicht verfügbar. SQL-Migration ausführen.</p>'
+                  : ranking.length ? `<div class="space-y-2.5">${ranking.map(barRow).join('')}</div>` : '<p class="text-sm text-slate-500">Noch keine Messdiener angelegt.</p>'}
               </div>
               <div class="panel panel-pad">
                 <div class="flex items-center justify-between gap-3 mb-2">
@@ -1128,6 +1144,13 @@
       function renderScheduleResults() {
         const box = document.getElementById('schedule-results');
         if (!box) return;
+        const warning = document.getElementById('confirmation-stats-warning');
+        if (warning) {
+          warning.classList.toggle('hidden', !state.confirmationStatsError);
+          warning.textContent = state.confirmationStatsError
+            ? `Bestätigungsstatistik nicht verfügbar. Bitte supabase/einteilung_statistik.sql im Supabase SQL-Editor ausführen. (${state.confirmationStatsError})`
+            : '';
+        }
         const items = getGottesdiensteInSchedulePeriod();
         if (items.length === 0) {
           box.innerHTML = '<div class="panel panel-pad text-sm text-slate-500">Im gewählten Zeitraum gibt es keine Gottesdienste. Stelle oben „ab" und „bis" ein oder lege Gottesdienste an.</div>';
@@ -1140,6 +1163,7 @@
               <p class="font-semibold text-slate-900 leading-snug">${escHtml(serviceLabel(g))}<span class="font-normal text-slate-500 ml-2">${formatTimeShort(g.time)}</span></p>
               <div class="flex flex-wrap gap-1.5 mt-1.5">${teamChips(g)}</div>
             </div>
+            <span class="badge ${state.confirmedAssignments[String(g.id)] ? 'badge-ok' : 'badge-warn'}">${state.confirmedAssignments[String(g.id)] ? 'Bestätigt' : 'Entwurf'}</span>
             <span class="hidden sm:inline-flex">${statusBadge(serviceStatus(g))}</span>
           </div>`).join('')}</div>`;
       }
@@ -1162,6 +1186,12 @@
         document.getElementById('ge-seniors').value = g.seniors;
         document.getElementById('ge-juniors').value = g.juniors;
         const a = state.assignments[g.id] || { seniors: [], juniors: [] };
+        const confirmed = state.confirmedAssignments[String(g.id)];
+        const confirmedNote = document.getElementById('ge-confirmed-note');
+        confirmedNote.classList.toggle('hidden', !confirmed);
+        confirmedNote.textContent = confirmed
+          ? 'Diese Einteilung ist bestätigt. Änderungen an den Minis werden beim Speichern auch in der Statistik übernommen.'
+          : '';
         renderEditAssignees({
           Senior: (a.seniors || []).map(p => String(p.id)),
           Junior: (a.juniors || []).map(p => String(p.id)),
@@ -1392,20 +1422,40 @@
         const today = todayString();
         const limit = new Date(); limit.setDate(limit.getDate() - 90);
         const limitIso = `${limit.getFullYear()}-${String(limit.getMonth() + 1).padStart(2, '0')}-${String(limit.getDate()).padStart(2, '0')}`;
-        const counted = state.gottesdienste.filter(g => g.date <= today && g.date >= limitIso && Object.keys(attendanceOf(g.id)).length > 0);
+        const servicesWithAttendance = new Map();
+        state.gottesdienste.forEach(g => {
+          const id = String(g.id);
+          if (g.date <= today && g.date >= limitIso && Object.keys(attendanceOf(id)).length > 0) {
+            servicesWithAttendance.set(id, g);
+          }
+        });
+        Object.entries(state.confirmedAssignments).forEach(([id, snapshot]) => {
+          const hasAttendance = Object.keys(attendanceOf(id)).length > 0;
+          if (hasAttendance && snapshot.service_date <= today && snapshot.service_date >= limitIso) {
+            servicesWithAttendance.set(id, snapshot);
+          }
+        });
+        const counted = [...servicesWithAttendance.entries()];
         const rows = state.messdiener.map(m => {
           const id = String(m.id);
           let planned = 0, came = 0, extra = 0;
-          counted.forEach(g => {
-            const was = !!attendanceOf(g.id)[id], assigned = assignedIds(g.id).has(id);
+          counted.forEach(([gid]) => {
+            const was = !!attendanceOf(gid)[id];
+            const snapshot = state.confirmedAssignments[gid];
+            const assigned = snapshot && [...(snapshot.seniors || []), ...(snapshot.juniors || [])]
+              .some(person => String(person.id) === id);
             if (assigned) { planned++; if (was) came++; } else if (was) extra++;
           });
           return { m, planned, came, extra };
         }).filter(r => r.planned || r.extra).sort((a, b) => (a.planned ? a.came / a.planned : 2) - (b.planned ? b.came / b.planned : 2) || a.m.name.localeCompare(b.m.name));
-        document.getElementById('att-stats-sub').textContent = counted.length
-          ? `Letzte 90 Tage, ${counted.length} Gottesdienst${counted.length === 1 ? '' : 'e'} mit erfasster Anwesenheit.`
-          : 'Sobald die erste Anwesenheit erfasst ist, erscheint hier die Übersicht.';
-        document.getElementById('att-stats-body').innerHTML = rows.map(r => {
+        document.getElementById('att-stats-sub').textContent = state.confirmationStatsError
+          ? 'Bestätigungsstatistik nicht verfügbar. Bitte supabase/einteilung_statistik.sql im Supabase SQL-Editor ausführen.'
+          : counted.length
+            ? `Letzte 90 Tage, ${counted.length} Gottesdienst${counted.length === 1 ? '' : 'e'} mit erfasster Anwesenheit. Nur bestätigte Einteilungen zählen als geplant.`
+            : 'Sobald Anwesenheit erfasst wurde, erscheint hier die Übersicht. Nur bestätigte Einteilungen zählen als geplant.';
+        document.getElementById('att-stats-body').innerHTML = state.confirmationStatsError
+          ? '<tr><td colspan="5" class="text-slate-500" style="padding:1.5rem 1rem">Bestätigungsstatistik nicht verfügbar. Bitte die SQL-Migration ausführen.</td></tr>'
+          : rows.map(r => {
           const quote = r.planned ? Math.round(100 * r.came / r.planned) : null;
           return `<tr style="cursor:default">
             <td data-label="Name" class="font-semibold text-slate-900">${escHtml(r.m.name)}</td>
@@ -1418,7 +1468,9 @@
 
         const recent = state.gottesdienste.filter(g => g.date <= today).slice(-12).reverse();
         document.getElementById('att-recent').innerHTML = recent.map(g => {
-          const att = attendanceOf(g.id), assigned = assignedIds(g.id);
+          const att = attendanceOf(g.id);
+          const snapshot = state.confirmedAssignments[String(g.id)];
+          const assigned = new Set(snapshot ? [...(snapshot.seniors || []), ...(snapshot.juniors || [])].map(p => String(p.id)) : []);
           const came = Object.keys(att).length;
           const cameAssigned = [...assigned].filter(id => att[id]).length;
           const text = came === 0 ? 'Noch keine Anwesenheit erfasst' : `${came} da${assigned.size ? `, davon ${cameAssigned} von ${assigned.size} Eingeteilten` : ''}`;
@@ -1627,6 +1679,20 @@
           juniors: byId('Junior'),
         }]);
         if (aErr) return alert('Gottesdienst gespeichert, aber die Einteilung nicht: ' + aErr.message);
+
+        const confirmed = state.confirmedAssignments[String(id)];
+        if (confirmed) {
+          const updatedSnapshot = {
+            gottesdienst_id: String(id),
+            service_date: date,
+            service_title: title,
+            seniors: byId('Senior'),
+            juniors: byId('Junior'),
+            confirmed_at: confirmed.confirmed_at || new Date().toISOString(),
+          };
+          const { error: statsErr } = await supabaseClient.from('einteilung_statistik').upsert([updatedSnapshot]);
+          if (statsErr) return alert('Einteilung gespeichert, aber die bestätigte Statistik nicht aktualisiert: ' + statsErr.message);
+        }
 
         editingGottesdienstId = null;
         closeModals();
@@ -2257,8 +2323,40 @@
         return { seniors, juniors };
       }
 
+      async function confirmSchedule() {
+        await loadDataFromDB();
+        if (state.confirmationStatsError) {
+          return alert('Bestätigen nicht möglich. Bitte supabase/einteilung_statistik.sql im Supabase SQL-Editor ausführen.');
+        }
+        const items = getGottesdiensteInSchedulePeriod();
+        if (items.length === 0) return alert('Keine Gottesdienste im gewählten Zeitraum gefunden.');
+        if (!confirm(`Die Einteilungen für ${items.length} Gottesdienst(e) bestätigen? Bestätigte Einsätze zählen in Statistik und künftiger Verteilung. Bereits bestätigte Einteilungen dieser Gottesdienste werden aktualisiert; gelöschte Gottesdienste bleiben in der Statistik erhalten.`)) return;
+
+        const confirmedAt = new Date().toISOString();
+        const rows = items.map(g => {
+          const a = state.assignments[g.id] || state.confirmedAssignments[String(g.id)] || { seniors: [], juniors: [] };
+          return {
+            gottesdienst_id: String(g.id),
+            service_date: g.date,
+            service_title: g.title || '',
+            seniors: a.seniors || [],
+            juniors: a.juniors || [],
+            confirmed_at: confirmedAt,
+          };
+        });
+        const { error } = await supabaseClient.from('einteilung_statistik').upsert(rows);
+        if (error) return alert('Bestätigen fehlgeschlagen: ' + error.message + '\nBitte supabase/einteilung_statistik.sql ausführen.');
+        rows.forEach(row => { state.confirmedAssignments[row.gottesdienst_id] = row; });
+        saveCache();
+        renderAll();
+        alert('Einteilung bestätigt. Sie zählt jetzt in Statistik und künftiger Verteilung.');
+      }
+
       async function runAutoAssign() {
         await loadDataFromDB(); // aktuelle Abwesenheiten der Minis berücksichtigen
+        if (state.confirmationStatsError) {
+          return alert('Einteilung nicht möglich, solange die Bestätigungsstatistik nicht verfügbar ist. Bitte supabase/einteilung_statistik.sql ausführen.');
+        }
         let counts = {};
         const last = {}; // Datum des letzten Einsatzes je Mini
         state.messdiener.forEach(m => counts[m.id] = 0);
@@ -2277,24 +2375,42 @@
         const to = new Date(`${targetGottesdienste[targetGottesdienste.length - 1].date}T12:00:00`); to.setDate(to.getDate() + 112);
         const iso = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
         const fromIso = iso(from), toIso = iso(to);
-        state.gottesdienste.forEach(g => {
-          if (targetIds.has(String(g.id)) || g.date < fromIso || g.date > toIso) return;
-          const a = state.assignments[g.id];
-          if (!a) return;
-          [...(a.seniors || []), ...(a.juniors || [])].forEach(p => {
-            if (counts[p.id] === undefined) return;
-            counts[p.id]++;
-            if (!last[p.id] || g.date > last[p.id]) last[p.id] = g.date;
+        Object.values(state.confirmedAssignments).forEach(a => {
+          const serviceId = String(a.gottesdienst_id);
+          if (targetIds.has(serviceId) || a.service_date < fromIso || a.service_date > toIso) return;
+          new Set([...(a.seniors || []), ...(a.juniors || [])].map(p => String(p.id))).forEach(id => {
+            if (counts[id] === undefined) return;
+            counts[id]++;
+            if (!last[id] || a.service_date > last[id]) last[id] = a.service_date;
+          });
+        });
+
+        // Bereits eingeteilte Minis im Zielzeitraum bleiben gesetzt und zählen vorab
+        // mit, damit manuelle Einteilungen die Verteilung der freien Plätze beeinflussen.
+        const existingByService = new Map();
+        targetGottesdienste.forEach(g => {
+          const current = state.assignments[g.id] || state.confirmedAssignments[String(g.id)] || { seniors: [], juniors: [] };
+          const seniors = current.seniors || [];
+          const juniors = current.juniors || [];
+          existingByService.set(String(g.id), { seniors, juniors });
+          const uniqueIds = new Set([...seniors, ...juniors].map(m => String(m.id)));
+          uniqueIds.forEach(id => {
+            if (counts[id] === undefined) return;
+            counts[id]++;
+            if (!last[id] || g.date > last[id]) last[id] = g.date;
           });
         });
 
         for (const g of targetGottesdienste) {
-          const dayOfWeek = new Date(`${g.date}T12:00:00`).getDay();
+          const existing = existingByService.get(String(g.id)) || { seniors: [], juniors: [] };
+          const alreadyAssigned = new Set([...existing.seniors, ...existing.juniors].map(m => String(m.id)));
+          const blockedFromAuto = new Set(alreadyAssigned);
+          [...existing.seniors, ...existing.juniors].forEach(m => partnerIds(m).forEach(id => blockedFromAuto.add(id)));
           const available = state.messdiener.filter(m => isAvailableOn(m, g.date));
           
           const byFair = (a, b) => (counts[a.id] - counts[b.id]) || String(last[a.id] || '').localeCompare(String(last[b.id] || ''));
-          const seniors = available.filter(m => m.type === 'Senior').sort(byFair);
-          const juniors = available.filter(m => m.type === 'Junior').sort(byFair);
+          const seniors = available.filter(m => m.type === 'Senior' && !alreadyAssigned.has(String(m.id))).sort(byFair);
+          const juniors = available.filter(m => m.type === 'Junior' && !alreadyAssigned.has(String(m.id))).sort(byFair);
 
           // Sonntags-/Freitags-Vorlage gilt standardmäßig für alle Gottesdienste an diesem Wochentag
           const tpl = getAutoTemplateForDate(g.date);
@@ -2304,14 +2420,27 @@
 
           let chosenSeniors, chosenJuniors;
           if (useAll) {
-            chosenSeniors = seniors;
-            chosenJuniors = juniors;
+            chosenSeniors = [...existing.seniors, ...seniors];
+            chosenJuniors = [...existing.juniors, ...juniors];
           } else {
-            ({ seniors: chosenSeniors, juniors: chosenJuniors } = pickWithPartners(available, needSeniors, needJuniors, counts, last));
+            const remaining = available.filter(m => !blockedFromAuto.has(String(m.id)));
+            const picked = pickWithPartners(
+              remaining,
+              Math.max(0, needSeniors - existing.seniors.length),
+              Math.max(0, needJuniors - existing.juniors.length),
+              counts,
+              last
+            );
+            chosenSeniors = [...existing.seniors, ...picked.seniors];
+            chosenJuniors = [...existing.juniors, ...picked.juniors];
           }
-          chosenSeniors.forEach(s => counts[s.id]++);
-          chosenJuniors.forEach(j => counts[j.id]++);
-          [...chosenSeniors, ...chosenJuniors].forEach(m => { last[m.id] = g.date; });
+          const selectedIds = new Set([...chosenSeniors, ...chosenJuniors].map(m => String(m.id)));
+          [...seniors, ...juniors]
+            .filter(m => selectedIds.has(String(m.id)) && !alreadyAssigned.has(String(m.id)))
+            .forEach(m => {
+              counts[m.id]++;
+              if (!last[m.id] || g.date > last[m.id]) last[m.id] = g.date;
+            });
 
           state.assignments[g.id] = { seniors: chosenSeniors, juniors: chosenJuniors };
 
