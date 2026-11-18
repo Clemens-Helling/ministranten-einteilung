@@ -22,7 +22,7 @@
     <link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png" />
   </head>
   <body class="text-slate-800 min-h-screen">
-    <main class="max-w-md mx-auto px-4 py-8 space-y-5">
+    <main class="max-w-md mx-auto px-4 py-6 sm:py-8 space-y-5">
       <header class="text-center">
         <img src="icons/logo-192.png" alt="Ministranten Gurtweil" width="88" height="88" class="mx-auto mb-3 rounded-2xl" />
         <h1 class="serif text-3xl font-semibold text-slate-900">Messdienst</h1>
@@ -51,108 +51,127 @@
 
       <!-- Eingeloggt -->
       <section id="app" class="hidden space-y-5">
-        <div class="flex items-center justify-between">
-          <p class="text-sm text-slate-600">Angemeldet als <strong id="who" class="text-slate-900"></strong></p>
-          <button id="logout-btn" type="button" class="text-sm text-slate-500 hover:text-slate-800 underline">Abmelden</button>
-        </div>
-
-        <!-- Hinweis, solange noch die PIN vom Zettel gilt -->
-        <div id="pin-nudge" class="panel panel-pad notice hidden space-y-2">
-          <p class="font-semibold text-slate-900">Wähle deine eigene PIN</p>
-          <p class="hint">Du nutzt noch die PIN vom Zettel. Mit einer eigenen PIN kann niemand sonst in deinem Namen etwas eintragen. Die Leiter können sie danach nicht mehr sehen.</p>
-          <a href="#pin-card" class="btn btn-primary btn-sm">PIN ändern</a>
-        </div>
-
-        <!-- Vertretungsanfragen an mich -->
-        <div id="anfragen" class="panel panel-pad space-y-3 hidden">
-          <h2 class="panel-title">Vertretung</h2>
-          <ul id="anfragen-list" class="divide-y divide-slate-100"></ul>
-        </div>
-
-        <!-- Einchecken (QR-Code in der Sakristei, Adresse mit ?k=) -->
-        <div id="checkin-card" class="hidden space-y-3">
-          <div id="checkin-list" class="space-y-3"></div>
-        </div>
-
-        <!-- Anmeldung für einen bestimmten Gottesdienst (Link mit ?t=) -->
-        <div id="signup-card" class="panel panel-pad space-y-3 hidden">
-          <div>
-            <p class="hint">Wer hat Zeit?</p>
-            <p id="signup-title" class="serif text-xl font-semibold text-slate-900"></p>
-            <p id="signup-when" class="hint"></p>
-          </div>
-          <div id="signup-yes" class="hidden space-y-3">
-            <p class="badge badge-ok inline-flex">Du bist eingetragen</p>
-            <button id="signup-leave" type="button" class="btn btn-secondary btn-block">Doch nicht, wieder austragen</button>
-          </div>
-          <div id="signup-no" class="hidden space-y-3">
-            <p class="text-sm text-slate-600">Wenn du Zeit hast, trag dich hier ein. Das ist noch keine feste Einteilung.</p>
-            <button id="signup-join" type="button" class="btn btn-primary btn-block">Ich habe Zeit</button>
-          </div>
-        </div>
-
-        <div class="panel panel-pad">
-          <h2 class="panel-title mb-1">Meine nächsten Dienste</h2>
-          <ul id="dienste" class="divide-y divide-slate-100"></ul>
-        </div>
-
-        <div id="push-card" class="panel panel-pad space-y-2 hidden">
-          <h2 class="panel-title">Benachrichtigungen</h2>
-          <p id="push-text" class="hint"></p>
-          <button id="push-btn" type="button" class="btn btn-secondary btn-block"></button>
-        </div>
-
-        <form id="add-form" class="panel panel-pad space-y-4">
-          <h2 class="panel-title">Abwesenheit eintragen</h2>
-          <div class="grid grid-cols-2 gap-3">
-            <div>
-              <label for="von" class="label">Von</label>
-              <input id="von" type="date" required class="field" />
+        <div class="flex items-center justify-between gap-3">
+          <p class="min-w-0 text-sm text-slate-600">Angemeldet als <strong id="who" class="text-slate-900"></strong></p>
+          <div class="flex flex-none items-center gap-2">
+            <div id="mini-menu-wrap" class="relative">
+              <button id="menu-toggle" type="button" class="btn btn-secondary btn-sm" aria-label="Menü öffnen" aria-controls="mini-menu" aria-expanded="false">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"></path></svg>
+                <span>Menü</span>
+              </button>
+              <nav id="mini-menu" class="panel panel-pad absolute right-0 top-full z-30 mt-2 w-56 space-y-2 shadow-lg hidden" aria-label="Bereiche">
+                <button type="button" class="btn btn-secondary btn-block justify-start" data-mini-view="services" aria-current="page">Meine Dienste</button>
+                <button type="button" class="btn btn-secondary btn-block justify-start" data-mini-view="absence">Abwesenheit</button>
+                <button type="button" class="btn btn-secondary btn-block justify-start" data-mini-view="settings">Einstellungen</button>
+              </nav>
             </div>
+            <button id="logout-btn" type="button" class="text-sm text-slate-500 hover:text-slate-800 underline">Abmelden</button>
+          </div>
+        </div>
+
+        <div id="view-services" class="mini-view space-y-5">
+          <!-- Hinweis, solange noch die PIN vom Zettel gilt -->
+          <div id="pin-nudge" class="panel panel-pad notice hidden space-y-2">
+            <p class="font-semibold text-slate-900">Wähle deine eigene PIN</p>
+            <p class="hint">Du nutzt noch die PIN vom Zettel. Mit einer eigenen PIN kann niemand sonst in deinem Namen etwas eintragen. Die Leiter können sie danach nicht mehr sehen.</p>
+            <button id="pin-nudge-link" type="button" class="btn btn-primary btn-sm">PIN ändern</button>
+          </div>
+
+          <!-- Vertretungsanfragen an mich -->
+          <div id="anfragen" class="panel panel-pad space-y-3 hidden">
+            <h2 class="panel-title">Vertretung</h2>
+            <ul id="anfragen-list" class="divide-y divide-slate-100"></ul>
+          </div>
+
+          <!-- Einchecken (QR-Code in der Sakristei, Adresse mit ?k=) -->
+          <div id="checkin-card" class="hidden space-y-3">
+            <div id="checkin-list" class="space-y-3"></div>
+          </div>
+
+          <!-- Anmeldung für einen bestimmten Gottesdienst (Link mit ?t=) -->
+          <div id="signup-card" class="panel panel-pad space-y-3 hidden">
             <div>
-              <label for="bis" class="label">Bis (einschließlich)</label>
-              <input id="bis" type="date" required class="field" />
+              <p class="hint">Wer hat Zeit?</p>
+              <p id="signup-title" class="serif text-xl font-semibold text-slate-900"></p>
+              <p id="signup-when" class="hint"></p>
+            </div>
+            <div id="signup-yes" class="hidden space-y-3">
+              <p class="badge badge-ok inline-flex">Du bist eingetragen</p>
+              <button id="signup-leave" type="button" class="btn btn-secondary btn-block">Doch nicht, wieder austragen</button>
+            </div>
+            <div id="signup-no" class="hidden space-y-3">
+              <p class="text-sm text-slate-600">Wenn du Zeit hast, trag dich hier ein. Das ist noch keine feste Einteilung.</p>
+              <button id="signup-join" type="button" class="btn btn-primary btn-block">Ich habe Zeit</button>
             </div>
           </div>
-          <p class="hint -mt-2">Nur ein Tag? Dann wähle zweimal dasselbe Datum.</p>
-          <div>
-            <label for="grund" class="label">Grund</label>
-            <input id="grund" type="text" required maxlength="100" list="grund-vorschlaege" autocomplete="off" placeholder="z. B. Urlaub, Schule, Familie" class="field" />
-            <datalist id="grund-vorschlaege">
-              <option value="Urlaub"></option><option value="Ferien"></option><option value="Schule / Prüfung"></option>
-              <option value="Familie"></option><option value="Krank"></option><option value="Sonstiges"></option>
-            </datalist>
-            <p class="hint mt-1">Bitte kurz und allgemein, ohne Einzelheiten zu Krankheiten. Die Leiter sehen den Grund.</p>
-          </div>
-          <button id="add-btn" type="submit" class="btn btn-primary btn-block">Eintragen</button>
-        </form>
 
-        <div class="panel panel-pad">
-          <h2 class="panel-title mb-2">Meine Abwesenheiten</h2>
-          <ul id="list" class="divide-y divide-slate-100"></ul>
+          <div class="panel panel-pad">
+            <h2 class="panel-title mb-1">Meine nächsten Dienste</h2>
+            <ul id="dienste" class="divide-y divide-slate-100"></ul>
+          </div>
         </div>
 
-        <form id="pin-card" class="panel panel-pad space-y-4">
-          <div>
-            <h2 class="panel-title">Meine PIN ändern</h2>
-            <p class="hint mt-1">Die neue PIN besteht aus 4 Ziffern. Die Leiter sehen sie nicht. Vergisst du sie, setzen die Leiter sie zurück.</p>
-          </div>
-          <div class="grid grid-cols-2 gap-3">
-            <div><label for="pin-new" class="label">Neue PIN</label><input id="pin-new" type="password" inputmode="numeric" pattern="[0-9]{4}" maxlength="4" autocomplete="new-password" required class="field tracking-widest" /></div>
-            <div><label for="pin-new2" class="label">Wiederholen</label><input id="pin-new2" type="password" inputmode="numeric" pattern="[0-9]{4}" maxlength="4" autocomplete="new-password" required class="field tracking-widest" /></div>
-          </div>
-          <button id="pin-btn" type="submit" class="btn btn-secondary btn-block">PIN ändern</button>
-        </form>
+        <div id="view-absence" class="mini-view space-y-5 hidden">
+          <form id="add-form" class="panel panel-pad space-y-4">
+            <h2 class="panel-title">Abwesenheit eintragen</h2>
+            <div class="grid grid-cols-2 gap-3">
+              <div>
+                <label for="von" class="label">Von</label>
+                <input id="von" type="date" required class="field" />
+              </div>
+              <div>
+                <label for="bis" class="label">Bis (einschließlich)</label>
+                <input id="bis" type="date" required class="field" />
+              </div>
+            </div>
+            <p class="hint -mt-2">Nur ein Tag? Dann wähle zweimal dasselbe Datum.</p>
+            <div>
+              <label for="grund" class="label">Grund</label>
+              <input id="grund" type="text" required maxlength="100" list="grund-vorschlaege" autocomplete="off" placeholder="z. B. Urlaub, Schule, Familie" class="field" />
+              <datalist id="grund-vorschlaege">
+                <option value="Urlaub"></option><option value="Ferien"></option><option value="Schule / Prüfung"></option>
+                <option value="Familie"></option><option value="Krank"></option><option value="Sonstiges"></option>
+              </datalist>
+              <p class="hint mt-1">Bitte kurz und allgemein, ohne Einzelheiten zu Krankheiten. Die Leiter sehen den Grund.</p>
+            </div>
+            <button id="add-btn" type="submit" class="btn btn-primary btn-block">Eintragen</button>
+          </form>
 
-        <div id="cal-card" class="panel panel-pad hidden">
-          <h2 class="panel-title mb-1">Meine Dienste im Kalender</h2>
-          <p class="hint mb-3">Deine Einteilungen erscheinen automatisch in deinem Handykalender und aktualisieren sich von selbst.</p>
-          <div class="flex flex-wrap gap-2">
-            <a id="cal-subscribe" class="btn btn-primary" href="#">Kalender abonnieren</a>
-            <button id="cal-copy" type="button" class="btn btn-secondary">Link kopieren</button>
+          <div class="panel panel-pad">
+            <h2 class="panel-title mb-2">Meine Abwesenheiten</h2>
+            <ul id="list" class="divide-y divide-slate-100"></ul>
           </div>
-          <p class="hint mt-3">Öffnet sich nichts? Kopiere den Link und füge ihn im Kalender unter „Kalender per URL hinzufügen“ (Google) bzw. „Kalenderabo hinzufügen“ (iPhone) ein. Der Link gehört nur dir, gib ihn nicht weiter.</p>
-          <button id="cal-reset" type="button" class="btn btn-quiet btn-sm mt-2">Neuen Link erzeugen</button>
+        </div>
+
+        <div id="view-settings" class="mini-view space-y-5 hidden">
+          <div id="push-card" class="panel panel-pad space-y-2 hidden">
+            <h2 class="panel-title">Benachrichtigungen</h2>
+            <p id="push-text" class="hint"></p>
+            <button id="push-btn" type="button" class="btn btn-secondary btn-block"></button>
+          </div>
+
+          <form id="pin-card" class="panel panel-pad space-y-4">
+            <div>
+              <h2 class="panel-title">Meine PIN ändern</h2>
+              <p class="hint mt-1">Die neue PIN besteht aus 4 Ziffern. Die Leiter sehen sie nicht. Vergisst du sie, setzen die Leiter sie zurück.</p>
+            </div>
+            <div class="grid grid-cols-2 gap-3">
+              <div><label for="pin-new" class="label">Neue PIN</label><input id="pin-new" type="password" inputmode="numeric" pattern="[0-9]{4}" maxlength="4" autocomplete="new-password" required class="field tracking-widest" /></div>
+              <div><label for="pin-new2" class="label">Wiederholen</label><input id="pin-new2" type="password" inputmode="numeric" pattern="[0-9]{4}" maxlength="4" autocomplete="new-password" required class="field tracking-widest" /></div>
+            </div>
+            <button id="pin-btn" type="submit" class="btn btn-secondary btn-block">PIN ändern</button>
+          </form>
+
+          <div id="cal-card" class="panel panel-pad hidden">
+            <h2 class="panel-title mb-1">Meine Dienste im Kalender</h2>
+            <p class="hint mb-3">Deine Einteilungen erscheinen automatisch in deinem Handykalender und aktualisieren sich von selbst.</p>
+            <div class="flex flex-wrap gap-2">
+              <a id="cal-subscribe" class="btn btn-primary" href="#">Kalender abonnieren</a>
+              <button id="cal-copy" type="button" class="btn btn-secondary">Link kopieren</button>
+            </div>
+            <p class="hint mt-3">Öffnet sich nichts? Kopiere den Link und füge ihn im Kalender unter „Kalender per URL hinzufügen“ (Google) bzw. „Kalenderabo hinzufügen“ (iPhone) ein. Der Link gehört nur dir, gib ihn nicht weiter.</p>
+            <button id="cal-reset" type="button" class="btn btn-quiet btn-sm mt-2">Neuen Link erzeugen</button>
+          </div>
         </div>
       </section>
     </main>
@@ -185,6 +204,48 @@
       const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, { auth: { persistSession: false, autoRefreshToken: false } });
 
       const $ = (id) => document.getElementById(id);
+      const miniViews = ["services", "absence", "settings"];
+      function showMiniView(name) {
+        miniViews.forEach((view) => {
+          $("view-" + view).classList.toggle("hidden", view !== name);
+          const button = document.querySelector(`[data-mini-view="${view}"]`);
+          button.classList.toggle("btn-primary", view === name);
+          button.classList.toggle("btn-secondary", view !== name);
+          if (view === name) button.setAttribute("aria-current", "page");
+          else button.removeAttribute("aria-current");
+        });
+      }
+      function closeMiniMenu() {
+        $("mini-menu").classList.add("hidden");
+        $("menu-toggle").setAttribute("aria-expanded", "false");
+        $("menu-toggle").setAttribute("aria-label", "Menü öffnen");
+      }
+      $("menu-toggle").addEventListener("click", () => {
+        const opening = $("mini-menu").classList.contains("hidden");
+        $("mini-menu").classList.toggle("hidden", !opening);
+        $("menu-toggle").setAttribute("aria-expanded", String(opening));
+        $("menu-toggle").setAttribute("aria-label", opening ? "Menü schließen" : "Menü öffnen");
+      });
+      document.querySelectorAll("[data-mini-view]").forEach((button) => {
+        button.addEventListener("click", () => {
+          showMiniView(button.dataset.miniView);
+          closeMiniMenu();
+        });
+      });
+      document.addEventListener("click", (event) => {
+        if (!$("mini-menu-wrap").contains(event.target)) closeMiniMenu();
+      });
+      document.addEventListener("keydown", (event) => {
+        if (event.key === "Escape" && $("menu-toggle").getAttribute("aria-expanded") === "true") {
+          closeMiniMenu();
+          $("menu-toggle").focus();
+        }
+      });
+      $("pin-nudge-link").addEventListener("click", () => {
+        showMiniView("settings");
+        $("pin-card").scrollIntoView({ behavior: "smooth", block: "start" });
+      });
+      showMiniView("services");
       const weekdaysShort = ["So", "Mo", "Di", "Mi", "Do", "Fr", "Sa"];
       const weekdaysLong = ["Sonntag", "Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag", "Samstag"];
       const params = new URLSearchParams(location.search);
@@ -570,6 +631,8 @@
       function enterApp(result) {
         $("login-form").classList.add("hidden");
         $("app").classList.remove("hidden");
+        showMiniView("services");
+        closeMiniMenu();
         $("who").textContent = session.name;
         const t = todayIso();
         $("von").min = t; $("bis").min = t;
@@ -581,6 +644,7 @@
 
       function leaveApp() {
         session = null;
+        closeMiniMenu();
         forget("abwesenheit-pin");
         $("pin-input").value = "";
         $("app").classList.add("hidden");

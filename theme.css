@@ -220,6 +220,42 @@ input, select, textarea, button { touch-action: manipulation; }
 }
 body { padding-left: env(safe-area-inset-left); padding-right: env(safe-area-inset-right); }
 
+/* Kleine Smartphone-Breite */
+@media (max-width: 640px) {
+  .page-title { font-size: 1.65rem; }
+  .page-sub { font-size: 0.875rem; }
+  .panel-pad { padding: 1rem; }
+  .page-head { align-items: stretch; gap: 0.75rem; }
+  .page-head > .flex,
+  .page-head > div:last-child {
+    width: 100%;
+  }
+  .page-head > .flex .btn,
+  .page-head > div:last-child .btn {
+    flex: 1 1 auto;
+  }
+  .next { padding: 1rem; align-items: flex-start; }
+  .next-title { font-size: 1.55rem; }
+  .leaf-lg { width: 5.25rem; }
+  .leaf-lg .leaf-day { font-size: 2.8rem; }
+  .grid-cols-2 { grid-template-columns: repeat(1, minmax(0, 1fr)); }
+  .responsive-table td { gap: 0.5rem; }
+  .modal-card { padding-left: 1rem !important; padding-right: 1rem !important; }
+  .mobile-top .serif { font-size: 1rem; }
+  .mobile-nav { padding-left: max(0.15rem, env(safe-area-inset-left)); padding-right: max(0.15rem, env(safe-area-inset-right)); }
+  .mobile-nav button { font-size: 0.56rem; }
+  .toast { max-width: calc(100vw - 2rem); }
+}
+
+@media (max-width: 380px) {
+  main > div { padding-left: 0.75rem !important; padding-right: 0.75rem !important; }
+  .mobile-top { padding-left: 0.75rem; padding-right: 0.75rem; }
+  .mobile-top img { width: 28px; height: 28px; }
+  .mobile-nav button { font-size: 0.5rem; }
+  .mobile-nav button svg { width: 1.2rem; height: 1.2rem; }
+  .page-title { font-size: 1.5rem; }
+}
+
 /* Dialoge am Handy als Sheet von unten */
 @media (max-width: 640px) {
   .modal { align-items: flex-end !important; padding: 0 !important; }
