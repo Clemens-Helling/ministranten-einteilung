@@ -580,6 +580,7 @@
             <h4 class="serif text-lg font-semibold text-slate-900">Einteilung</h4>
             <button type="button" onclick="selectAllAvailableInEdit()" class="btn btn-quiet btn-sm">Alle verfügbaren einsetzen</button>
           </div>
+          <p class="hint mb-3">Die Häufigkeit zeigt, wie oft jede Person im aktuell gewählten Einteilungszeitraum eingeplant ist. Die Messe, die du gerade bearbeitest, wird mitgezählt.</p>
           <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <div class="flex justify-between items-baseline mb-1.5">
@@ -1610,10 +1611,30 @@
                   <input type="checkbox" value="${escHtml(m.id)}" ${checked} onchange="updateEditCounters()" class="h-4 w-4" />
                   <span class="${available ? 'text-slate-800' : 'text-slate-400'}">${escHtml(m.name)}</span>
                   ${available ? '' : `<span class="text-xs text-amber-700">(${absent ? 'abwesend' + (absence.grund ? ': ' + escHtml(absence.grund) : '') : 'an diesem Tag nicht verfügbar'})</span>`}
+                  <span data-frequency class="ml-auto shrink-0 text-xs text-slate-500"></span>
                 </label>`;
               }).join('');
         });
         updateEditCounters();
+      }
+
+      function updateEditFrequencyCounts() {
+        const counts = new Map();
+        const selected = getEditSelection();
+        const currentId = editingGottesdienstId === null ? null : String(editingGottesdienstId);
+        getGottesdiensteInSchedulePeriod().forEach(g => {
+          const people = String(g.id) === currentId
+            ? [...selected.Senior, ...selected.Junior]
+            : [...(state.assignments[g.id]?.seniors || []), ...(state.assignments[g.id]?.juniors || [])].map(m => String(m.id));
+          new Set(people.map(String)).forEach(id => counts.set(id, (counts.get(id) || 0) + 1));
+        });
+        ['Senior', 'Junior'].forEach(type => {
+          document.getElementById('ge-list-' + type).querySelectorAll('input[type="checkbox"]').forEach(input => {
+            const count = counts.get(input.value) || 0;
+            const frequency = input.closest('label').querySelector('[data-frequency]');
+            frequency.textContent = `${count} ${count === 1 ? 'Einsatz' : 'Einsätze'}`;
+          });
+        });
       }
 
       function applyTemplateInEdit() {
@@ -1654,6 +1675,7 @@
           el.textContent = `${have} von ${need[type]} ausgewählt`;
           el.className = 'text-xs font-semibold ' + (have === need[type] ? 'text-emerald-700' : 'text-amber-700');
         });
+        updateEditFrequencyCounts();
       }
 
       async function saveGottesdienstEdit() {
