@@ -541,6 +541,14 @@
         $(modal).addEventListener("click", (e) => { if (e.target === $(modal)) closeModal(modal); });
       });
 
+      // Technischer Fehler der Datenbank: fehlende Einrichtung klar benennen, sonst den echten Text zeigen
+      function rpcProblem(error) {
+        const text = (error && error.message) || "";
+        if ((error && error.code === "PGRST202") || /find the function|does not exist/i.test(text))
+          return "Die Tauschbörse ist in der Datenbank noch nicht eingerichtet. Bitte einen Leiter, die Datei supabase/tauschboerse.sql im Supabase-SQL-Editor auszuführen.";
+        return "Fehler in der Datenbank: " + (text || "unbekannt");
+      }
+
       // Ruft eine Tauschbörsen-Funktion auf und lädt danach alles neu
       async function swapCall(fn, args, okText, btns) {
         showMessage("");
@@ -548,7 +556,7 @@
         const { data, error } = await sb.rpc(fn, { p_id: session.id, p_pin: session.pin, ...args });
         if (error || !data || !data.ok) {
           (btns || []).forEach((b) => (b.disabled = false));
-          showMessage(errorText(data && data.error), "error");
+          showMessage(error ? rpcProblem(error) : errorText(data && data.error), "error");
           await loadServices();
           return false;
         }
@@ -657,11 +665,11 @@
 
       async function loadSwap() {
         if (!session) return;
-        const { data } = await sb.rpc("tb_list", { p_id: session.id, p_pin: session.pin });
+        const { data, error } = await sb.rpc("tb_list", { p_id: session.id, p_pin: session.pin });
         swapMine = {};
         if (!data || !data.ok) {
           $("swap-offers").innerHTML = "";
-          $("swap-offers").append(el("li", "py-3 text-sm text-slate-500", "Die Tauschbörse kann ich gerade nicht laden."));
+          $("swap-offers").append(el("li", "py-3 text-sm text-slate-500", error ? rpcProblem(error) : "Die Tauschbörse kann ich gerade nicht laden."));
           return;
         }
         data.meine.forEach((o) => { swapMine[o.gottesdienst_id] = o; });
