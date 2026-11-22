@@ -296,3 +296,6 @@ grant execute on function public.tb_list(text, text), public.tb_offer(text, text
   public.tb_withdraw(text, text, bigint), public.tb_take(text, text, bigint),
   public.tb_propose(text, text, bigint, text), public.tb_unpropose(text, text, bigint),
   public.tb_decide(text, text, bigint, boolean) to anon, authenticated;
+
+-- 8) Supabase soll die neuen Funktionen sofort kennen (Schema-Cache neu laden)
+notify pgrst, 'reload schema';
