@@ -4,7 +4,7 @@
 --   "tausch":  Andere bieten einen eigenen Dienst dagegen an, der Anbieter nimmt einen Vorschlag an oder lehnt ab.
 -- Bei Übernahme bzw. Tausch wird die Einteilung (assignments) automatisch geändert. Existiert für den Gottesdienst
 -- schon eine bestätigte Einteilung (einteilung_statistik), wird auch sie angepasst, damit die Häufigkeit stimmt.
--- Voraussetzung: abwesenheiten.sql, mini.sql und vertretung.sql wurden schon ausgeführt.
+-- Voraussetzung: abwesenheiten.sql und mini.sql wurden schon ausgeführt (vertretung.sql ist nicht nötig).
 -- Im Supabase SQL-Editor einmal ausführen. Mehrfaches Ausführen ist unkritisch.
 -- =====================================================================
 
@@ -41,7 +41,51 @@ alter table public.tausch_vorschlaege enable row level security;
 drop policy if exists "Leiter lesen Tauschvorschläge" on public.tausch_vorschlaege;
 create policy "Leiter lesen Tauschvorschläge" on public.tausch_vorschlaege for select to authenticated using (true);
 
--- 2) Hilfsfunktionen (nicht öffentlich aufrufbar) -------------------------
+-- 2a) Gemeinsame Hilfsfunktionen (dieselben wie in vertretung.sql, hier nochmals angelegt, damit diese Datei allein läuft)
+create or replace function public._sv_kurz(n text) returns text
+language sql immutable as $$
+  select case when position(' ' in trim(n)) > 0
+              then split_part(trim(n), ' ', 1) || ' ' || upper(left(regexp_replace(trim(n), '^.*\s', ''), 1)) || '.'
+              else trim(n) end
+$$;
+
+-- In welcher Liste steht die Person bei diesem Gottesdienst? 'seniors' | 'juniors' | null
+create or replace function public._sv_slot(gid text, pid text) returns text
+language sql stable security definer set search_path = public as $$
+  select case
+    when exists (select 1 from public.assignments a, jsonb_array_elements(coalesce(a.seniors, '[]'::jsonb)) e
+                  where a.gottesdienst_id::text = gid and e ->> 'id' = pid) then 'seniors'
+    when exists (select 1 from public.assignments a, jsonb_array_elements(coalesce(a.juniors, '[]'::jsonb)) e
+                  where a.gottesdienst_id::text = gid and e ->> 'id' = pid) then 'juniors'
+  end
+$$;
+
+create or replace function public._sv_absent(pid text, d date) returns boolean
+language sql stable security definer set search_path = public as $$
+  select exists (select 1 from public.abwesenheiten where messdiener_id = pid and d between von and bis)
+$$;
+
+-- Datum des Gottesdienstes, wenn er noch bevorsteht, sonst null
+create or replace function public._sv_datum(gid text) returns date
+language sql stable security definer set search_path = public as $$
+  select g.date::date from public.gottesdienste g
+   where g.id::text = gid and g.date::date >= (now() at time zone 'Europe/Berlin')::date
+$$;
+
+-- Darf diese Person für diese Liste einspringen? (richtige Rolle, nicht schon eingeteilt, nicht abwesend)
+create or replace function public._sv_eligible(gid text, pid text, slot text, d date) returns boolean
+language sql stable security definer set search_path = public as $$
+  select exists (select 1 from public.messdiener m
+                  where m.id::text = pid
+                    and ((slot = 'seniors' and m.type = 'Senior') or (slot = 'juniors' and m.type = 'Junior')))
+     and public._sv_slot(gid, pid) is null
+     and not public._sv_absent(pid, d)
+$$;
+
+revoke all on function public._sv_slot(text, text), public._sv_absent(text, date),
+  public._sv_datum(text), public._sv_eligible(text, text, text, date) from public, anon, authenticated;
+
+-- 2b) Hilfsfunktionen (nicht öffentlich aufrufbar) -------------------------
 -- Person old_id durch newp ersetzen: in der Einteilung und in der bestätigten Einteilung
 create or replace function public._tb_replace(gid text, old_id text, newp jsonb) returns void
 language plpgsql security definer set search_path = public as $$
@@ -71,8 +115,10 @@ begin
    where gottesdienst_id = gid and von_id = pid and status = 'offen';
   update public.tausch_vorschlaege set status = 'zurueckgezogen', beantwortet_am = now()
    where gottesdienst_id = gid and von_id = pid and status = 'offen';
-  update public.vertretungen set status = 'vergeben'
-   where gottesdienst_id = gid and von_id = pid and status = 'offen';
+  if to_regclass('public.vertretungen') is not null then
+    execute $q$ update public.vertretungen set status = 'vergeben'
+                 where gottesdienst_id = $1 and von_id = $2 and status = 'offen' $q$ using gid, pid;
+  end if;
 end $$;
 
 revoke all on function public._tb_replace(text, text, jsonb), public._tb_cleanup(text, text) from public, anon, authenticated;
