@@ -543,10 +543,12 @@
 
       // Technischer Fehler der Datenbank: fehlende Einrichtung klar benennen, sonst den echten Text zeigen
       function rpcProblem(error) {
-        const text = (error && error.message) || "";
-        if ((error && error.code === "PGRST202") || /find the function|does not exist/i.test(text))
-          return "Die Tauschbörse ist in der Datenbank noch nicht eingerichtet. Bitte einen Leiter, die Datei supabase/tauschboerse.sql im Supabase-SQL-Editor auszuführen.";
-        return "Fehler in der Datenbank: " + (text || "unbekannt");
+        const text = (error && error.message) || "unbekannt";
+        const code = (error && error.code) || "";
+        const detail = ` (Technisch: ${code ? code + ": " : ""}${text})`;
+        if (code === "PGRST202" || /find the function/i.test(text))
+          return "Die Tauschbörse ist in der Datenbank noch nicht eingerichtet. Bitte supabase/tauschboerse.sql im Supabase-SQL-Editor ausführen." + detail;
+        return "Fehler in der Datenbank." + detail;
       }
 
       // Ruft eine Tauschbörsen-Funktion auf und lädt danach alles neu
