@@ -61,6 +61,7 @@
               </button>
               <nav id="mini-menu" class="panel panel-pad absolute right-0 top-full z-30 mt-2 w-56 space-y-2 shadow-lg hidden" aria-label="Bereiche">
                 <button type="button" class="btn btn-secondary btn-block justify-start" data-mini-view="services" aria-current="page">Meine Dienste</button>
+                <button type="button" class="btn btn-secondary btn-block justify-start" data-mini-view="swap">Tauschbörse<span id="swap-badge" class="badge badge-warn ml-auto hidden"></span></button>
                 <button type="button" class="btn btn-secondary btn-block justify-start" data-mini-view="absence">Abwesenheit</button>
                 <button type="button" class="btn btn-secondary btn-block justify-start" data-mini-view="settings">Einstellungen</button>
               </nav>
@@ -108,6 +109,33 @@
           <div class="panel panel-pad">
             <h2 class="panel-title mb-1">Meine nächsten Dienste</h2>
             <ul id="dienste" class="divide-y divide-slate-100"></ul>
+          </div>
+        </div>
+
+        <div id="view-swap" class="mini-view space-y-5 hidden">
+          <div class="panel panel-pad space-y-1">
+            <h2 class="panel-title">Tauschbörse</h2>
+            <p class="hint">Du kannst an einem Termin nicht? Stell deinen Dienst hier ein, entweder zum Abgeben oder zum Tauschen gegen einen anderen Dienst. Eingestellt wird unter „Meine Dienste“. Leiter und Kinder tauschen jeweils untereinander.</p>
+          </div>
+
+          <div id="swap-mine-card" class="panel panel-pad space-y-3 hidden">
+            <h2 class="panel-title">Meine Angebote</h2>
+            <ul id="swap-mine" class="divide-y divide-slate-100"></ul>
+          </div>
+
+          <div id="swap-out-card" class="panel panel-pad space-y-3 hidden">
+            <h2 class="panel-title">Meine Tausch-Vorschläge</h2>
+            <ul id="swap-out" class="divide-y divide-slate-100"></ul>
+          </div>
+
+          <div id="swap-done-card" class="panel panel-pad space-y-3 hidden">
+            <h2 class="panel-title">Zuletzt erledigt</h2>
+            <ul id="swap-done" class="divide-y divide-slate-100"></ul>
+          </div>
+
+          <div class="panel panel-pad">
+            <h2 class="panel-title mb-1">Angebote der anderen</h2>
+            <ul id="swap-offers" class="divide-y divide-slate-100"></ul>
           </div>
         </div>
 
@@ -191,6 +219,40 @@
       </div>
     </div>
 
+    <div id="modal-offer" class="modal fixed inset-0 bg-slate-900/50 backdrop-blur-sm hidden items-center justify-center p-4 z-50">
+      <div class="modal-card max-w-md w-full max-h-[92vh] overflow-y-auto p-6 space-y-4">
+        <div>
+          <h3 class="modal-title">In die Tauschbörse</h3>
+          <p id="offer-when" class="hint mt-1"></p>
+        </div>
+        <div class="space-y-1">
+          <button id="offer-give" type="button" class="btn btn-primary btn-block">Dienst abgeben</button>
+          <p class="hint">Wer kann, übernimmt deinen Dienst direkt.</p>
+        </div>
+        <div class="space-y-1">
+          <button id="offer-swap" type="button" class="btn btn-secondary btn-block">Gegen einen anderen Dienst tauschen</button>
+          <p class="hint">Andere schlagen dir einen ihrer Dienste vor. Du entscheidest, ob du tauschst.</p>
+        </div>
+        <div class="flex justify-end">
+          <button id="offer-cancel" type="button" class="btn btn-secondary">Abbrechen</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="modal-swap" class="modal fixed inset-0 bg-slate-900/50 backdrop-blur-sm hidden items-center justify-center p-4 z-50">
+      <div class="modal-card max-w-md w-full max-h-[92vh] overflow-y-auto p-6 space-y-4">
+        <div>
+          <h3 class="modal-title">Tausch vorschlagen</h3>
+          <p id="swap-pick-when" class="hint mt-1"></p>
+        </div>
+        <p class="hint">Welchen deiner Dienste bietest du dafür an? Der Tausch gilt erst, wenn der andere zustimmt.</p>
+        <ul id="swap-pick-list" class="divide-y divide-slate-100"></ul>
+        <div class="flex justify-end">
+          <button id="swap-pick-cancel" type="button" class="btn btn-secondary">Abbrechen</button>
+        </div>
+      </div>
+    </div>
+
     <script>
       const SUPABASE_URL = "https://wkeccnqquqwszbjhdfqo.supabase.co";
       const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndrZWNjbnFxdXF3c3piamhkZnFvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTI3NjYwNzcsImV4cCI6MjEwODM0MjA3N30.FhbXCHfHV0H0vBp5GVF9J-vADXJ65eJ61-OMjQ2-PpY";
@@ -204,7 +266,7 @@
       const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, { auth: { persistSession: false, autoRefreshToken: false } });
 
       const $ = (id) => document.getElementById(id);
-      const miniViews = ["services", "absence", "settings"];
+      const miniViews = ["services", "swap", "absence", "settings"];
       function showMiniView(name) {
         miniViews.forEach((view) => {
           $("view-" + view).classList.toggle("hidden", view !== name);
@@ -230,6 +292,7 @@
         button.addEventListener("click", () => {
           showMiniView(button.dataset.miniView);
           closeMiniMenu();
+          if (button.dataset.miniView === "swap" && typeof loadSwap === "function" && session) loadSwap();
         });
       });
       document.addEventListener("click", (event) => {
@@ -270,7 +333,8 @@
           grund: "Bitte gib einen kurzen Grund an (höchstens 100 Zeichen).",
           dates: "Bitte prüfe die Daten: „Bis“ darf nicht vor „Von“ liegen und muss in der Zukunft enden.",
           limit: "Du hast schon sehr viele Einträge. Lösche alte oder melde dich bei den Leitern.",
-          closed: "Hier kann gerade nichts eingetragen werden. Der Gottesdienst ist vorbei oder das Einchecken noch nicht offen.",
+          closed: "Das geht hier nicht (mehr): Der Gottesdienst ist vorbei, du bist dafür nicht eingeteilt oder das Einchecken ist noch nicht offen.",
+          nomatch: "Das passt nicht zusammen. Leiter und Kinder können nur untereinander tauschen, und niemand darf an dem Tag schon eingeteilt oder abwesend sein.",
           notfound: "Dieser Link ist nicht (mehr) gültig. Frag bitte einen Leiter.",
           format: "Die PIN besteht aus genau 4 Ziffern.",
           same: "Die neue PIN muss anders sein als die bisherige.",
@@ -323,7 +387,7 @@
       async function loadServices() {
         const list = $("dienste");
         list.innerHTML = "";
-        await loadInbox();
+        await Promise.all([loadInbox(), loadSwap()]);
         const { data, error } = await sb.rpc("my_services", { p_id: session.id, p_pin: session.pin });
         if (error || !data || !data.ok) { list.append(el("li", "py-3 text-sm text-slate-500", "Deine Dienste kann ich gerade nicht laden.")); return; }
         if (!data.dienste.length) { list.append(el("li", "py-3 text-sm text-slate-500", "Aktuell bist du nicht eingeteilt.")); return; }
@@ -343,6 +407,19 @@
           find.type = "button";
           find.addEventListener("click", () => openSub(g));
           row.append(find);
+          const offered = swapMine[g.id];
+          if (offered) {
+            row.append(el("span", "badge badge-warn", offered.modus === "tausch" ? "Tausch gesucht" : "In der Tauschbörse"));
+            const out = el("button", "btn btn-quiet btn-sm", "Zurückziehen");
+            out.type = "button";
+            out.addEventListener("click", () => swapCall("tb_withdraw", { p_offer: offered.id }, "Dein Angebot ist zurückgezogen."));
+            row.append(out);
+          } else {
+            const give = el("button", "btn btn-secondary btn-sm", "Tauschbörse");
+            give.type = "button";
+            give.addEventListener("click", () => openOffer(g));
+            row.append(give);
+          }
           if (asked.some((a) => a.status === "offen")) {
             const back = el("button", "btn btn-quiet btn-sm", "Anfragen zurückziehen");
             back.type = "button";
@@ -450,6 +527,189 @@
         if (!confirm("Alle offenen Anfragen für diesen Dienst zurückziehen?")) return;
         await sb.rpc("sub_cancel", { p_id: session.id, p_pin: session.pin, p_gid: gid });
         loadServices();
+      }
+
+      // ---------- Tauschbörse ----------
+      let swapMine = {}; // gottesdienst_id -> mein offenes Angebot
+      const plain = (t) => (t || "").replace(/\s*\(.*\)$/, "");
+      const slotText = (g) => `${whenText(g)} · ${plain(g.titel)}`;
+      const dafuerText = (v) => whenText({ datum: v.dafuer_datum, zeit: v.dafuer_zeit }) + " · " + plain(v.dafuer_titel);
+      function openModal(id) { $(id).classList.remove("hidden"); $(id).classList.add("flex"); }
+      function closeModal(id) { $(id).classList.add("hidden"); $(id).classList.remove("flex"); }
+      [["modal-offer", "offer-cancel"], ["modal-swap", "swap-pick-cancel"]].forEach(([modal, cancel]) => {
+        $(cancel).addEventListener("click", () => closeModal(modal));
+        $(modal).addEventListener("click", (e) => { if (e.target === $(modal)) closeModal(modal); });
+      });
+
+      // Technischer Fehler der Datenbank: fehlende Einrichtung klar benennen, sonst den echten Text zeigen
+      function rpcProblem(error) {
+        const text = (error && error.message) || "unbekannt";
+        const code = (error && error.code) || "";
+        const detail = ` (Technisch: ${code ? code + ": " : ""}${text})`;
+        if (code === "PGRST202" || /find the function/i.test(text))
+          return "Die Tauschbörse ist in der Datenbank noch nicht eingerichtet. Bitte supabase/tauschboerse.sql im Supabase-SQL-Editor ausführen." + detail;
+        return "Fehler in der Datenbank." + detail;
+      }
+
+      // Ruft eine Tauschbörsen-Funktion auf und lädt danach alles neu
+      async function swapCall(fn, args, okText, btns) {
+        showMessage("");
+        (btns || []).forEach((b) => (b.disabled = true));
+        const { data, error } = await sb.rpc(fn, { p_id: session.id, p_pin: session.pin, ...args });
+        if (error || !data || !data.ok) {
+          (btns || []).forEach((b) => (b.disabled = false));
+          showMessage(error ? rpcProblem(error) : errorText(data && data.error), "error");
+          await loadServices();
+          return false;
+        }
+        if (okText) showMessage(okText, "ok");
+        await loadServices();
+        return true;
+      }
+
+      function swapBtn(text, cls, onClick) {
+        const b = el("button", cls, text);
+        b.type = "button";
+        b.addEventListener("click", onClick);
+        return b;
+      }
+
+      function renderSwap(d) {
+        // Meine Angebote
+        const mine = $("swap-mine");
+        mine.innerHTML = "";
+        let pending = 0;
+        d.meine.forEach((o) => {
+          const li = el("li", "py-3 space-y-2");
+          li.append(el("p", "text-sm font-semibold text-slate-900", o.modus === "tausch" ? "Du suchst einen Tausch" : "Du gibst diesen Dienst ab"));
+          li.append(el("p", "text-sm text-slate-600", slotText(o)));
+          if (o.modus === "tausch") {
+            if (!o.vorschlaege.length) li.append(el("p", "hint", "Noch kein Vorschlag. Du siehst es hier und am Zähler im Menü, sobald jemand etwas anbietet."));
+            o.vorschlaege.forEach((v) => {
+              pending++;
+              const box = el("div", "rounded-lg border border-slate-200 p-3 space-y-2");
+              box.append(el("p", "text-sm text-slate-800", `${v.von} bietet dir an:`));
+              box.append(el("p", "text-sm font-semibold text-slate-900", slotText(v)));
+              const row = el("div", "flex gap-2");
+              const yes = swapBtn("Tauschen", "btn btn-primary btn-sm", async () => {
+                if (!confirm(`Tauschen? Du übernimmst ${whenText(v)} und gibst ${whenText(o)} an ${v.von} ab.`)) return;
+                swapCall("tb_decide", { p_vorschlag: v.id, p_accept: true }, `Getauscht! Du bist jetzt am ${whenText(v)} eingeteilt.`, [yes, no]);
+              });
+              const no = swapBtn("Ablehnen", "btn btn-secondary btn-sm", () => swapCall("tb_decide", { p_vorschlag: v.id, p_accept: false }, "Vorschlag abgelehnt.", [yes, no]));
+              row.append(yes, no);
+              box.append(row);
+              li.append(box);
+            });
+          } else {
+            li.append(el("p", "hint", "Der Erste, der kann, übernimmt den Dienst."));
+          }
+          li.append(swapBtn("Angebot zurückziehen", "btn btn-quiet btn-sm", () => swapCall("tb_withdraw", { p_offer: o.id }, "Dein Angebot ist zurückgezogen.")));
+          mine.append(li);
+        });
+        $("swap-mine-card").classList.toggle("hidden", !d.meine.length);
+
+        // Meine Vorschläge an andere
+        const out = $("swap-out");
+        out.innerHTML = "";
+        d.vorschlaege.forEach((v) => {
+          const li = el("li", "py-3 space-y-1");
+          li.append(el("p", "text-sm text-slate-800", `Du willst ${slotText(v)} von ${v.von} gegen deinen Dienst am ${dafuerText(v)}.`));
+          if (v.status === "offen") {
+            li.append(el("p", "hint", "Wartet auf Antwort."));
+            li.append(swapBtn("Zurückziehen", "btn btn-quiet btn-sm", () => swapCall("tb_unpropose", { p_vorschlag: v.id }, "Vorschlag zurückgezogen.")));
+          } else if (v.status === "angenommen") {
+            li.append(el("p", "badge badge-ok inline-flex", "Getauscht, der Dienst gehört jetzt dir"));
+          } else {
+            li.append(el("p", "hint", `${v.von} hat abgelehnt.`));
+          }
+          out.append(li);
+        });
+        $("swap-out-card").classList.toggle("hidden", !d.vorschlaege.length);
+
+        // Zuletzt erledigt
+        const done = $("swap-done");
+        done.innerHTML = "";
+        d.erledigt.forEach((e) => {
+          const li = el("li", "py-3");
+          li.append(el("p", "badge badge-ok inline-flex", e.modus === "tausch" ? `Getauscht mit ${e.mit}` : `${e.mit} übernimmt deinen Dienst`));
+          li.append(el("p", "hint mt-1", slotText(e)));
+          done.append(li);
+        });
+        $("swap-done-card").classList.toggle("hidden", !d.erledigt.length);
+
+        // Angebote der anderen
+        const offers = $("swap-offers");
+        offers.innerHTML = "";
+        if (!d.angebote.length) offers.append(el("li", "py-3 text-sm text-slate-500", "Gerade gibt es kein Angebot, bei dem du einspringen könntest."));
+        d.angebote.forEach((o) => {
+          const li = el("li", "py-3 space-y-2");
+          li.append(el("p", "text-sm font-semibold text-slate-900", o.modus === "tausch" ? `${o.von} sucht einen Tausch` : `${o.von} gibt einen Dienst ab`));
+          li.append(el("p", "text-sm text-slate-600", slotText(o)));
+          if (o.modus === "abgeben") {
+            const take = swapBtn("Übernehmen", "btn btn-primary btn-sm", () => {
+              if (!confirm(`Möchtest du den Dienst am ${whenText(o)} übernehmen?`)) return;
+              swapCall("tb_take", { p_offer: o.id }, "Danke! Der Dienst gehört jetzt dir.", [take]);
+            });
+            li.append(take);
+          } else if (o.optionen.length) {
+            li.append(swapBtn(o.vorgeschlagen.length ? "Weiteren Dienst anbieten" : "Tausch vorschlagen", "btn btn-secondary btn-sm", () => openSwapPick(o)));
+            if (o.vorgeschlagen.length) li.append(el("p", "hint", `Du hast ${o.vorgeschlagen.length === 1 ? "einen Vorschlag" : o.vorgeschlagen.length + " Vorschläge"} gemacht und wartest auf Antwort.`));
+          } else {
+            li.append(el("p", "hint", o.vorgeschlagen.length ? "Dein Vorschlag wartet auf Antwort." : "Du hast keinen Dienst, der dafür passt."));
+          }
+          offers.append(li);
+        });
+
+        const badge = $("swap-badge");
+        badge.textContent = pending ? String(pending) : "";
+        badge.classList.toggle("hidden", !pending);
+      }
+
+      async function loadSwap() {
+        if (!session) return;
+        const { data, error } = await sb.rpc("tb_list", { p_id: session.id, p_pin: session.pin });
+        swapMine = {};
+        if (!data || !data.ok) {
+          $("swap-offers").innerHTML = "";
+          $("swap-offers").append(el("li", "py-3 text-sm text-slate-500", error ? rpcProblem(error) : "Die Tauschbörse kann ich gerade nicht laden."));
+          return;
+        }
+        data.meine.forEach((o) => { swapMine[o.gottesdienst_id] = o; });
+        renderSwap(data);
+      }
+
+      // Eigenen Dienst einstellen
+      let offerTarget = null;
+      function openOffer(g) {
+        offerTarget = g;
+        $("offer-when").textContent = slotText(g);
+        openModal("modal-offer");
+      }
+      [["offer-give", "abgeben", "Dein Dienst steht in der Tauschbörse. Wer kann, übernimmt ihn."],
+       ["offer-swap", "tausch", "Dein Dienst steht in der Tauschbörse. Du bekommst die Vorschläge unter „Tauschbörse“."]].forEach(([btn, modus, text]) => {
+        $(btn).addEventListener("click", async () => {
+          const g = offerTarget;
+          closeModal("modal-offer");
+          if (g && (await swapCall("tb_offer", { p_gid: g.id, p_modus: modus }, text))) showMiniView("swap");
+        });
+      });
+
+      // Tausch vorschlagen: eigenen Dienst auswählen
+      function openSwapPick(o) {
+        $("swap-pick-when").textContent = `Du willst: ${slotText(o)} (${o.von})`;
+        const list = $("swap-pick-list");
+        list.innerHTML = "";
+        o.optionen.forEach((g) => {
+          const li = el("li", "py-3 flex items-center justify-between gap-3");
+          li.append(el("span", "text-sm text-slate-800", slotText(g)));
+          const b = swapBtn("Anbieten", "btn btn-primary btn-sm shrink-0", async () => {
+            closeModal("modal-swap");
+            await swapCall("tb_propose", { p_offer: o.id, p_gid: g.gottesdienst_id }, `Vorschlag an ${o.von} geschickt. Sobald er zustimmt, ist der Dienst getauscht.`);
+          });
+          li.append(b);
+          list.append(li);
+        });
+        openModal("modal-swap");
       }
 
       // ---------- Push-Benachrichtigungen ----------
@@ -651,6 +911,10 @@
         $("cal-card").classList.add("hidden");
         $("push-card").classList.add("hidden");
         $("anfragen").classList.add("hidden");
+        swapMine = {};
+        $("swap-badge").classList.add("hidden");
+        ["swap-mine-card", "swap-out-card", "swap-done-card"].forEach((id) => $(id).classList.add("hidden"));
+        $("swap-offers").innerHTML = "";
         $("signup-card").classList.add("hidden");
         $("checkin-card").classList.add("hidden");
         calUrl = "";
